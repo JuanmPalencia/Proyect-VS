@@ -1,0 +1,15 @@
+path: dataset
+train: images/train
+val: images/val
+
+nc: 4
+names: ['cars', 'trucks', 'motorcycles', '']
+
+
+# dataset/
+# ├── images/
+# │   ├── train/
+# │   └── val/
+# └── labels/
+#     ├── train/
+#     └── val/
