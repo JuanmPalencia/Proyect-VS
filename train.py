@@ -21,7 +21,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from ultralytics import YOLO
 
-
 def main():
     parser = argparse.ArgumentParser(description="Fine-tune YOLOv8 for aerial vehicle detection")
     parser.add_argument("--model", default="yolov8n.pt", help="Base model")
@@ -29,6 +28,7 @@ def main():
     parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--imgsz", type=int, default=640)
     parser.add_argument("--batch", type=int, default=16)
+    parser.add_argument("--workers", type=int, default=8, help="Dataloader workers")  
     parser.add_argument("--lr", type=float, default=0.001)
     parser.add_argument("--freeze", type=int, default=10, help="Freeze first N layers")
     parser.add_argument("--device", default="cpu")
@@ -45,6 +45,7 @@ def main():
         batch=args.batch,
         freeze=args.freeze,
         device=args.device,
+        workers=args.workers, 
         project=args.project,
         name=args.name,
     )

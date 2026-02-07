@@ -45,6 +45,8 @@ def build_analysis_payload(
     model_version: str,
     is_roundabout: bool = False,
     roundabout_occupancy_pct: float | None = None,
+    collision_count: int = 0,
+    collisions: list[dict] | None = None,
     geo: dict | None = None,
 ) -> dict[str, Any]:
     """Build the canonical analysis payload (before hashing)."""
@@ -60,9 +62,12 @@ def build_analysis_payload(
         "zone_occupancy": zone_occupancy,
         "risk_level": risk_level,
         "is_roundabout": is_roundabout,
+        "collision_count": collision_count,
     }
     if roundabout_occupancy_pct is not None:
         payload["roundabout_occupancy_pct"] = roundabout_occupancy_pct
+    if collisions:
+        payload["collisions"] = collisions
     if geo:
         payload["geo"] = geo
     return payload

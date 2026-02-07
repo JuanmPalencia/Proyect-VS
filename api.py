@@ -18,6 +18,7 @@ from src.hashing import build_evidence_record, compute_hash, canonical_json
 from src.hashing.integrity import build_analysis_payload, compute_file_hash
 from src.blockchain import get_blockchain_adapter
 from src.visualization import draw_detections
+from src.simulator import TrafficSimulator
 
 logging.basicConfig(level=logging.INFO)
 app = FastAPI(title="Traffic Aerial Analysis API", version="1.0.0")
@@ -26,6 +27,7 @@ app = FastAPI(title="Traffic Aerial Analysis API", version="1.0.0")
 _detector: VehicleDetector | None = None
 _analyzer: TrafficAnalyzer | None = None
 _chain = None
+_simulator: TrafficSimulator | None = None
 
 
 def _get_detector():
@@ -127,6 +129,54 @@ async def list_records(limit: int = Query(20, ge=1, le=100)):
     """List recent evidence records."""
     chain = _get_chain()
     return chain.list_records(limit=limit)
+
+
+def _get_simulator():
+    global _simulator
+    if _simulator is None:
+        _simulator = TrafficSimulator()
+    return _simulator
+
+
+@app.post("/simulate")
+async def simulate(
+    date: str = Query(..., description="Date YYYY-MM-DD"),
+    time: str = Query(..., description="Time HH:MM"),
+    scene_type: str = Query("urban_road", description="urban_road | roundabout | highway"),
+    scene_id: str = Query("simulated_scene", description="Scene identifier"),
+    total_vehicles: int = Query(0, description="Override total (0=auto)"),
+    register: bool = Query(False, description="Register on blockchain?"),
+):
+    """What-if traffic simulation for a given date/time/scene."""
+    from datetime import datetime as dt
+    try:
+        sim_dt = dt.strptime(f"{date} {time}", "%Y-%m-%d %H:%M")
+    except ValueError:
+        return JSONResponse(status_code=400, content={"error": "Invalid date/time format"})
+
+    sim = _get_simulator()
+    result = sim.simulate(
+        sim_datetime=sim_dt,
+        scene_type=scene_type,
+        scene_id=scene_id,
+        override_total=total_vehicles if total_vehicles > 0 else None,
+    )
+
+    sim_hash = compute_hash(result)
+    evidence = build_evidence_record(result)
+
+    response = {
+        "simulation": result,
+        "simulation_hash": sim_hash,
+        "evidence": evidence,
+    }
+
+    if register:
+        chain = _get_chain()
+        tx_result = chain.register(evidence)
+        response["blockchain"] = tx_result
+
+    return response
 
 
 @app.get("/health")

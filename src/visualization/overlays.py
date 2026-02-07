@@ -66,6 +66,48 @@ def generate_heatmap(image: np.ndarray, detections: list[Detection],
     return blended
 
 
+def draw_collisions(image: np.ndarray, collisions: list[dict],
+                     detections: list[Detection]) -> np.ndarray:
+    """Draw collision indicators: red boxes around involved vehicles + connecting lines."""
+    img = image.copy()
+
+    _SEVERITY_COLORS = {
+        "HIGH": (0, 0, 255),      # Red
+        "MEDIUM": (0, 128, 255),   # Orange
+        "WARNING": (0, 255, 255),  # Yellow
+    }
+
+    for col in collisions:
+        idx_a = col["vehicle_a_idx"]
+        idx_b = col["vehicle_b_idx"]
+        severity = col["severity"]
+        color = _SEVERITY_COLORS.get(severity, (0, 0, 255))
+
+        det_a = detections[idx_a]
+        det_b = detections[idx_b]
+
+        # Draw thick boxes around involved vehicles
+        for det in (det_a, det_b):
+            x1, y1, x2, y2 = map(int, det.bbox)
+            cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
+
+        # Draw line between centroids
+        ca = tuple(map(int, det_a.centroid))
+        cb = tuple(map(int, det_b.centroid))
+        cv2.line(img, ca, cb, color, 2, cv2.LINE_AA)
+
+        # Label at midpoint
+        mid_x = (ca[0] + cb[0]) // 2
+        mid_y = (ca[1] + cb[1]) // 2
+        label = f"{severity} IoU:{col['iou']:.2f}"
+        (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+        cv2.rectangle(img, (mid_x - 2, mid_y - th - 6), (mid_x + tw + 2, mid_y), color, -1)
+        cv2.putText(img, label, (mid_x, mid_y - 4),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+
+    return img
+
+
 def draw_density_grid(image: np.ndarray, density_grid: list[list[int]]) -> np.ndarray:
     """Overlay density grid numbers on image."""
     img = image.copy()

@@ -1,8 +1,0 @@
-numpy
-pandas
-kagglehub
-ultralytics
-cv2
-json
-hashlib
-datetime

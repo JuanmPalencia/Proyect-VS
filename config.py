@@ -41,9 +41,14 @@ CLASS_WEIGHTS = {
 }
 
 # ── BSV Blockchain ────────────────────────────────────────────────────
-BSV_NETWORK = os.getenv("BSV_NETWORK", "testnet")
+BSV_NETWORK = os.getenv("BSV_NETWORK", "main")
 BSV_PRIVATE_KEY = os.getenv("BSV_PRIVATE_KEY", "")
-BSV_API_URL = os.getenv("BSV_API_URL", "")
+ARC_URL = os.getenv("ARC_URL", "https://arc.gorillapool.io")
+WOC_BASE = (
+    "https://api.whatsonchain.com/v1/bsv/test"
+    if BSV_NETWORK == "testnet"
+    else "https://api.whatsonchain.com/v1/bsv/main"
+)
 
 # ── Dataset IDs (Kaggle) ─────────────────────────────────────────────
 DATASETS = {
@@ -60,6 +65,11 @@ DATASETS = {
         "local_root": "data/roundabout_aerial_images_for_vehicle_detection",
     },
 }
+
+# ── Collision detection ───────────────────────────────────────────────
+COLLISION_IOU_THRESHOLD = 0.05     # IoU above this = potential collision
+COLLISION_DISTANCE_THRESHOLD = 40  # pixels, centroid distance below this = proximity warning
+ENABLE_PLATE_OCR = True            # attempt license plate OCR on collision
 
 # ── Heatmap weights extended ──────────────────────────────────────────
 CLASS_WEIGHTS["cycle"] = 0.3  # alias used by roundabout dataset

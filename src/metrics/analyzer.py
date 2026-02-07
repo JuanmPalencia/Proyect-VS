@@ -9,6 +9,7 @@ import numpy as np
 
 import config
 from src.detection.detector import Detection
+from src.metrics.collision import detect_collisions
 
 
 @dataclass
@@ -19,9 +20,11 @@ class TrafficMetrics:
     density_grid: list[list[int]]
     occupancy_pct: float
     zone_occupancy: dict[str, float]
-    risk_level: str          # LOW / MEDIUM / HIGH
+    risk_level: str          # LOW / MEDIUM / HIGH / CRITICAL
     is_roundabout: bool
     roundabout_occupancy_pct: float | None
+    collisions: list[dict] | None = None
+    collision_count: int = 0
 
 
 class TrafficAnalyzer:
@@ -39,7 +42,8 @@ class TrafficAnalyzer:
         occupancy = self._occupancy_pct(detections, img_h, img_w)
         zones = self._zone_occupancy(detections, img_h, img_w)
         roundabout_occ = self._roundabout_occupancy(detections, img_h, img_w) if is_roundabout else None
-        risk = self._assess_risk(density, counts)
+        collisions = detect_collisions(detections)
+        risk = self._assess_risk(density, counts, collisions)
 
         return TrafficMetrics(
             counts=counts,
@@ -50,6 +54,8 @@ class TrafficAnalyzer:
             risk_level=risk,
             is_roundabout=is_roundabout,
             roundabout_occupancy_pct=round(roundabout_occ, 2) if roundabout_occ is not None else None,
+            collisions=collisions,
+            collision_count=len(collisions),
         )
 
     # ── Individual metrics ─────────────────────────────────────────────
@@ -120,12 +126,22 @@ class TrafficAnalyzer:
         return (inside / total) * 100
 
     def _assess_risk(self, density_grid: list[list[int]],
-                     counts: dict[str, int]) -> str:
-        """Simple risk heuristic based on density peaks and heavy vehicles."""
+                     counts: dict[str, int],
+                     collisions: list[dict] | None = None) -> str:
+        """Risk heuristic based on density, heavy vehicles, and collisions."""
+        # Collisions automatically escalate to CRITICAL
+        if collisions:
+            high_collisions = any(c["severity"] == "HIGH" for c in collisions)
+            if high_collisions:
+                return "CRITICAL"
+
         max_density = max(max(row) for row in density_grid) if density_grid else 0
         has_heavy = any(counts.get(c, 0) > 0 for c in config.HEAVY_VEHICLE_CLASSES)
+        has_collisions = bool(collisions)
 
-        if max_density >= config.RISK_DENSITY_THRESHOLD and has_heavy:
+        if has_collisions:
+            return "HIGH"
+        elif max_density >= config.RISK_DENSITY_THRESHOLD and has_heavy:
             return "HIGH"
         elif max_density >= config.RISK_DENSITY_THRESHOLD or has_heavy:
             return "MEDIUM"

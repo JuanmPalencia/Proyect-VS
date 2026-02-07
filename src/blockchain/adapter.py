@@ -1,4 +1,4 @@
-"""Blockchain adapter: BSV on-chain (OP_RETURN) + local ledger."""
+"""Blockchain adapter: BSV on-chain (OP_RETURN via bsv-sdk + ARC) + local ledger."""
 
 from __future__ import annotations
 
@@ -8,6 +8,8 @@ import uuid
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
+
+import requests
 
 import config
 
@@ -38,92 +40,205 @@ class BlockchainAdapter(ABC):
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# BSV ON-CHAIN ADAPTER (bsvlib + WhatsOnChain)
+# BSV ON-CHAIN ADAPTER (bsv-sdk + ARC broadcaster)
 # ═══════════════════════════════════════════════════════════════════════
 
 class BSVAdapter(BlockchainAdapter):
-    """Real BSV blockchain adapter using bsvlib for OP_RETURN transactions.
+    """Real BSV blockchain adapter using bsv-sdk for OP_RETURN transactions.
 
-    Requires BSV_PRIVATE_KEY in WIF format in .env.
-    Uses WhatsOnChain API to verify/query transactions.
+    Uses ARC (https://arc.gorillapool.io) for broadcasting and
+    WhatsOnChain API for UTXO lookups and tx verification.
     All records are also saved to local ledger for fast lookups.
     """
 
     def __init__(self):
         self.private_key_wif = config.BSV_PRIVATE_KEY
-        self.network = config.BSV_NETWORK
-        self.woc_base = (
-            "https://api.whatsonchain.com/v1/bsv/test"
-            if self.network == "testnet"
-            else "https://api.whatsonchain.com/v1/bsv/main"
-        )
+        self.network = config.BSV_NETWORK  # "main" or "testnet"
+        self.arc_url = config.ARC_URL
+        self.woc_base = config.WOC_BASE
         self._local = LocalLedgerAdapter()  # always keep local copy
-        self._wallet = None
+
+        self._key = None
+        self._address = None
 
         if not self.private_key_wif:
             logger.warning("BSV_PRIVATE_KEY not set - BSVAdapter in stub mode")
+        else:
+            self._init_key()
+
+    def _init_key(self):
+        """Initialize bsv-sdk PrivateKey from WIF."""
+        try:
+            from bsv import PrivateKey
+            self._key = PrivateKey(self.private_key_wif)
+            self._address = self._key.address()
+            logger.info("[BSV] Initialized key, address: %s", self._address)
+        except Exception as e:
+            logger.error("[BSV] Failed to init PrivateKey: %s", e)
+            self._key = None
 
     @property
     def is_configured(self) -> bool:
-        return bool(self.private_key_wif)
+        return self._key is not None
 
-    def _get_wallet(self):
-        """Lazy-init bsvlib wallet."""
-        if self._wallet is None:
-            from bsvlib import Wallet
-            from bsvlib.constants import Chain
-            chain = Chain.TEST if self.network == "testnet" else Chain.MAIN
-            self._wallet = Wallet(chain=chain)
-            self._wallet.add_key(self.private_key_wif)
-        return self._wallet
+    @property
+    def address(self) -> str | None:
+        return self._address
+
+    # ── UTXO fetching via WhatsOnChain ────────────────────────────────
+
+    def _fetch_utxos(self) -> list[dict]:
+        """Fetch unspent outputs for our address from WhatsOnChain."""
+        url = f"{self.woc_base}/address/{self._address}/unspent"
+        resp = requests.get(url, timeout=15)
+        resp.raise_for_status()
+        utxos = resp.json()
+        logger.info("[BSV] Found %d UTXOs for %s", len(utxos), self._address)
+        return utxos
+
+    def _fetch_raw_tx(self, txid: str) -> str:
+        """Fetch raw transaction hex from WhatsOnChain."""
+        url = f"{self.woc_base}/tx/{txid}/hex"
+        resp = requests.get(url, timeout=15)
+        resp.raise_for_status()
+        return resp.text.strip()
+
+    # ── Transaction building ──────────────────────────────────────────
+
+    def _build_op_return_tx(self, analysis_hash: str, scene_id: str) -> Any:
+        """Build a signed OP_RETURN transaction using bsv-sdk."""
+        from bsv import (
+            Transaction, TransactionInput, TransactionOutput,
+            P2PKH, OpReturn,
+        )
+
+        utxos = self._fetch_utxos()
+        if not utxos:
+            raise RuntimeError(
+                f"No UTXOs available for address {self._address}. "
+                "Fund the address to broadcast on-chain."
+            )
+
+        # Pick the first UTXO with enough satoshis (OP_RETURN txs are cheap)
+        utxo = max(utxos, key=lambda u: u["value"])
+        source_txid = utxo["tx_hash"]
+        source_vout = utxo["tx_pos"]
+        source_satoshis = utxo["value"]
+
+        logger.info(
+            "[BSV] Using UTXO %s:%d (%d sats)",
+            source_txid, source_vout, source_satoshis,
+        )
+
+        # Fetch the source transaction for input construction
+        raw_hex = self._fetch_raw_tx(source_txid)
+        source_tx = Transaction.from_hex(raw_hex)
+
+        # Build transaction
+        tx = Transaction()
+
+        # Input: spend the UTXO
+        tx_input = TransactionInput(
+            source_transaction=source_tx,
+            source_output_index=source_vout,
+            unlocking_script_template=P2PKH().unlock(self._key),
+        )
+        tx.add_input(tx_input)
+
+        # Output 1: OP_RETURN with evidence data
+        op_return_data = [
+            APP_PREFIX,
+            analysis_hash,
+            scene_id,
+            APP_VERSION,
+        ]
+        data_output = TransactionOutput(
+            locking_script=OpReturn().lock(op_return_data),
+            satoshis=0,
+        )
+        tx.add_output(data_output)
+
+        # Output 2: Change back to our address
+        change_output = TransactionOutput(
+            locking_script=P2PKH().lock(self._address),
+            change=True,
+        )
+        tx.add_output(change_output)
+
+        # Calculate fee and sign
+        tx.fee()
+        tx.sign()
+
+        logger.info(
+            "[BSV] Built tx %s (%d bytes, fee=%d sats)",
+            tx.txid(), tx.byte_length(), tx.get_fee(),
+        )
+        return tx
+
+    def _broadcast_tx(self, tx: Any) -> str:
+        """Broadcast transaction via ARC. Returns txid."""
+        from bsv import ARC
+
+        broadcaster = ARC(self.arc_url)
+        # Use sync_broadcast for synchronous integration
+        response = broadcaster.sync_broadcast(tx, timeout=30)
+
+        if response.status == "success":
+            logger.info("[BSV] Broadcast success: %s", response.txid)
+            return response.txid
+        else:
+            raise RuntimeError(
+                f"ARC broadcast failed: {response.status} - "
+                f"{getattr(response, 'description', getattr(response, 'message', 'unknown'))}"
+            )
+
+    def _explorer_url(self, txid: str) -> str:
+        """Build WhatsOnChain explorer URL."""
+        if self.network == "testnet":
+            return f"https://test.whatsonchain.com/tx/{txid}"
+        return f"https://whatsonchain.com/tx/{txid}"
+
+    # ── Public API ────────────────────────────────────────────────────
 
     def register(self, evidence_record: dict[str, Any]) -> dict[str, Any]:
-        # Always save locally first
+        # Always save locally first (fast, resilient)
         local_result = self._local.register(evidence_record)
 
         if not self.is_configured:
-            logger.info("[BSV STUB] No private key - registered locally only")
+            logger.info("[BSV] No private key - registered locally only")
             return {**local_result, "status": "local_only"}
 
+        analysis_hash = evidence_record["analysis_hash"]
+        scene_id = evidence_record.get("scene_id", "unknown")
+
         try:
-            wallet = self._get_wallet()
-            analysis_hash = evidence_record["analysis_hash"]
-            scene_id = evidence_record.get("scene_id", "unknown")
+            tx = self._build_op_return_tx(analysis_hash, scene_id)
+            txid = self._broadcast_tx(tx)
 
-            # OP_RETURN data: prefix | hash | scene_id | version
-            pushdatas = [
-                APP_PREFIX.encode(),
-                analysis_hash.encode(),
-                scene_id.encode(),
-                APP_VERSION.encode(),
-            ]
+            # Update local record with real txid
+            self._local._update_record_txid(analysis_hash, txid)
 
-            # Create OP_RETURN-only transaction (no value outputs needed)
-            tx = wallet.create_transaction(outputs=[], pushdatas=pushdatas, combine=True)
-            txid = tx.broadcast()
+            return {
+                "tx_id": txid,
+                "status": "on_chain",
+                "network": self.network,
+                "explorer_url": self._explorer_url(txid),
+                "evidence_id": local_result.get("evidence_id"),
+                "address": self._address,
+            }
 
-            if txid:
-                explorer_url = (
-                    f"https://test.whatsonchain.com/tx/{txid}"
-                    if self.network == "testnet"
-                    else f"https://whatsonchain.com/tx/{txid}"
-                )
-                logger.info("[BSV] Registered %s → tx %s", analysis_hash[:16], txid)
-                # Update local record with txid
-                self._local._update_record_txid(analysis_hash, txid)
-                return {
-                    "tx_id": txid,
-                    "status": "confirmed",
-                    "network": self.network,
-                    "explorer_url": explorer_url,
-                    "evidence_id": local_result.get("evidence_id"),
-                }
-            else:
-                logger.warning("[BSV] Broadcast returned empty txid")
-                return {**local_result, "status": "broadcast_failed"}
+        except RuntimeError as e:
+            # Expected failures (no UTXOs, broadcast rejected)
+            logger.warning("[BSV] %s", e)
+            return {
+                **local_result,
+                "status": "local_fallback",
+                "warning": str(e),
+                "address": self._address,
+            }
 
         except Exception as e:
-            logger.error("[BSV] Transaction failed: %s", e)
+            logger.error("[BSV] Unexpected error: %s", e, exc_info=True)
             return {
                 **local_result,
                 "status": "error",
@@ -133,20 +248,34 @@ class BSVAdapter(BlockchainAdapter):
     def verify(self, analysis_hash: str) -> dict[str, Any] | None:
         # Check local ledger first (fast)
         record = self._local.verify(analysis_hash)
-        if record and record.get("tx_id") and not record["tx_id"].startswith("local_"):
+        if not record:
+            return None
+
+        txid = record.get("tx_id", "")
+        if txid and not txid.startswith("local_"):
             # Verify on-chain via WhatsOnChain
             try:
-                import requests
-                txid = record["tx_id"]
-                resp = requests.get(f"{self.woc_base}/tx/{txid}", timeout=10)
+                resp = requests.get(
+                    f"{self.woc_base}/tx/{txid}", timeout=10,
+                )
                 if resp.status_code == 200:
+                    tx_data = resp.json()
                     record["on_chain_verified"] = True
-                    record["confirmations"] = resp.json().get("confirmations", 0)
+                    record["confirmations"] = tx_data.get("confirmations", 0)
+                    record["explorer_url"] = self._explorer_url(txid)
+
+                    # Try to verify OP_RETURN data matches
+                    hex_resp = requests.get(
+                        f"{self.woc_base}/tx/{txid}/hex", timeout=10,
+                    )
+                    if hex_resp.status_code == 200:
+                        record["raw_tx_available"] = True
                 else:
                     record["on_chain_verified"] = False
             except Exception as e:
                 record["on_chain_verified"] = False
                 record["verify_error"] = str(e)
+
         return record
 
     def list_records(self, limit: int = 50) -> list[dict[str, Any]]:
