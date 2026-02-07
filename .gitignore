@@ -1,35 +1,11 @@
-# Python
-__pycache__/
-*.py[cod]
-*.egg-info/
-dist/
-build/
-*.egg
-.claude
-# Environment
-#.env
-#venv/
-#.venv/
-
-# Data & Models (large files)
-data/ledger.jsonl
-data/results.json
-data/batch_results.json
-dataset/
 runs/
 *.pt
-!yolov8n.pt
-
 data/
-# IDE
+
+__pycache__/
+*.py[cod]
+*.egg
+
 .vscode/
-.idea/
-*.swp
-*.swo
 
-# OS
-.DS_Store
-Thumbs.db
-
-# Outputs
 analysis_*.json
