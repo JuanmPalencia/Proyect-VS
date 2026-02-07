@@ -103,7 +103,7 @@ tab_analyze, tab_simulate, tab_verify, tab_records = st.tabs(
 )
 
 # ═══════════════════════════════════════════════════════════════════════
-# TAB 1: ANALYZE (image upload → detection → metrics → hash → register)
+# TAB 1: ANALYZE
 # ═══════════════════════════════════════════════════════════════════════
 with tab_analyze:
     uploaded_file = st.file_uploader(
@@ -126,23 +126,32 @@ with tab_analyze:
             with st.spinner("Detectando vehículos..."):
                 detections = detector.detect(img_bgr)
 
-            metrics = analyzer.analyze(detections, h, w, is_roundabout=is_roundabout)
+            # IMPORTANT: apply same confidence filtering used in analyzer
+            det_f = [d for d in detections if d.confidence >= config.CONFIDENCE_THRESHOLD]
 
-            # Extract collision data safely
+            # Analyze using filtered detections (matches collision indices)
+            metrics = analyzer.analyze(det_f, h, w, is_roundabout=is_roundabout)
+
+            # Extract incident data safely
             m_collisions = getattr(metrics, "collisions", None) or []
             m_collision_count = getattr(metrics, "collision_count", 0)
 
-            # Identify vehicles involved in collisions (privacy: only on collision)
+            # Identify vehicles involved in incidents (privacy: only on incident)
             collision_details = []
             if m_collisions and config.ENABLE_PLATE_OCR:
                 involved_idxs = set()
                 for col in m_collisions:
-                    involved_idxs.add(col["vehicle_a_idx"])
-                    involved_idxs.add(col["vehicle_b_idx"])
-                for idx in involved_idxs:
-                    vid = plate_reader.identify_vehicle(img_bgr, detections[idx], h, w)
-                    vid["detection_idx"] = idx
-                    collision_details.append(vid)
+                    # indices refer to det_f (filtered list)
+                    if "vehicle_a_idx" in col:
+                        involved_idxs.add(col["vehicle_a_idx"])
+                    if "vehicle_b_idx" in col:
+                        involved_idxs.add(col["vehicle_b_idx"])
+
+                for idx in sorted(involved_idxs):
+                    if 0 <= idx < len(det_f):
+                        vid = plate_reader.identify_vehicle(img_bgr, det_f[idx], h, w)
+                        vid["detection_idx"] = idx
+                        collision_details.append(vid)
 
             payload = build_analysis_payload(
                 scene_id=scene_id,
@@ -168,30 +177,30 @@ with tab_analyze:
             # Visualizations
             col_img, col_heat = st.columns(2)
             with col_img:
-                st.subheader("Detecciones")
-                img_det = draw_detections(img_bgr, detections)
+                st.subheader("Detecciones (filtradas)")
+                img_det = draw_detections(img_bgr, det_f)
                 st.image(
                     cv2.cvtColor(img_det, cv2.COLOR_BGR2RGB),
-                    caption=f"{len(detections)} vehículos detectados",
+                    caption=f"{len(det_f)} vehículos (conf ≥ {config.CONFIDENCE_THRESHOLD:.2f})",
                     use_container_width=True,
                 )
             with col_heat:
                 st.subheader("Mapa de calor")
-                img_heat = generate_heatmap(img_bgr, detections)
+                img_heat = generate_heatmap(img_bgr, det_f)
                 st.image(
                     cv2.cvtColor(img_heat, cv2.COLOR_BGR2RGB),
                     caption="Densidad ponderada",
                     use_container_width=True,
                 )
 
-            # Collision visualization
+            # Incident visualization
             if m_collisions:
-                st.subheader("Colisiones detectadas")
-                img_col = draw_collisions(img_bgr, m_collisions, detections)
-                img_col = draw_detections(img_col, detections)
+                st.subheader("Eventos de riesgo detectados")
+                img_col = draw_collisions(img_bgr, m_collisions, det_f)
+                img_col = draw_detections(img_col, det_f)
                 st.image(
                     cv2.cvtColor(img_col, cv2.COLOR_BGR2RGB),
-                    caption=f"{m_collision_count} posibles colisiones",
+                    caption=f"{m_collision_count} eventos de riesgo",
                     use_container_width=True,
                 )
 
@@ -206,7 +215,7 @@ with tab_analyze:
             m1.metric("Total vehículos", metrics.total_vehicles)
             m2.metric("Ocupación", f"{metrics.occupancy_pct:.1f}%")
             m3.metric("Riesgo", metrics.risk_level)
-            m4.metric("Colisiones", m_collision_count)
+            m4.metric("Incidentes", m_collision_count)
             if metrics.roundabout_occupancy_pct is not None:
                 m5.metric("Ocp. rotonda", f"{metrics.roundabout_occupancy_pct:.1f}%")
             else:
@@ -216,22 +225,42 @@ with tab_analyze:
             for cls, cnt in metrics.counts.items():
                 st.write(f"  - {cls}: **{cnt}**")
 
-            st.markdown("**Ocupación por zona:**")
+            st.markdown("**Distribución por zona (vehículos):**")
             for zone, pct in metrics.zone_occupancy.items():
                 st.progress(pct / 100, text=f"{zone}: {pct:.1f}%")
 
-            # Collision details
+            # Incident details
             if m_collisions:
                 st.markdown("---")
-                st.subheader("Detalle de colisiones")
+                st.subheader("Detalle de incidentes críticos")
+
+                # Simple summary by severity
+                sev_counts = {"HIGH": 0, "MEDIUM": 0, "WARNING": 0}
+                for e in m_collisions:
+                    sev = e.get("severity", "WARNING")
+                    if sev in sev_counts:
+                        sev_counts[sev] += 1
+                st.caption(
+                    f"Resumen: HIGH={sev_counts['HIGH']} | MEDIUM={sev_counts['MEDIUM']} | WARNING={sev_counts['WARNING']}"
+                )
+
                 for i, col in enumerate(m_collisions):
-                    sev = col["severity"]
+                    sev = col.get("severity", "WARNING")
+                    etype = col.get("type", "EVENT")
                     severity_color = {"HIGH": "red", "MEDIUM": "orange", "WARNING": "yellow"}.get(sev, "gray")
+
+                    iou = col.get("iou", 0.0)
+                    dist_px = col.get("distance", None)
+                    dist_norm = col.get("distance_norm", None)
+
+                    dist_txt = f"{dist_px:.0f}px" if isinstance(dist_px, (int, float)) else "N/A"
+                    norm_txt = f"{dist_norm:.3f}" if isinstance(dist_norm, (int, float)) else "N/A"
+
                     st.markdown(
-                        f"**Colisión #{i+1}** — "
+                        f"**Evento #{i+1}** — **{etype}** — "
                         f":{severity_color}[{sev}] — "
-                        f"{col['vehicle_a_class']} vs {col['vehicle_b_class']} "
-                        f"(IoU: {col['iou']:.3f}, dist: {col['distance']:.0f}px)"
+                        f"{col.get('vehicle_a_class','?')} vs {col.get('vehicle_b_class','?')} "
+                        f"(IoU: {iou:.3f}, dist: {dist_txt}, dist_norm: {norm_txt})"
                     )
 
                 if collision_details:
@@ -279,7 +308,7 @@ with tab_analyze:
                 st.json(evidence)
 
 # ═══════════════════════════════════════════════════════════════════════
-# TAB 2: WHAT-IF SIMULATOR (with scene_id restored)
+# TAB 2: WHAT-IF SIMULATOR (unchanged)
 # ═══════════════════════════════════════════════════════════════════════
 with tab_simulate:
     st.subheader("Simulador de Escenarios de Tráfico")
@@ -288,7 +317,6 @@ with tab_simulate:
         "Puedes añadir **meteorología** y **evento especial** para escenarios más realistas."
     )
 
-    # ── Input panel ────────────────────────────────────────────────
     col_dt, col_scene, col_meta, col_id = st.columns([1, 1, 1, 1])
     with col_dt:
         sim_date = st.date_input("Fecha", value=date.today(), key="sim_date")
@@ -319,7 +347,6 @@ with tab_simulate:
 
     sim_datetime = datetime.combine(sim_date, sim_time)
 
-    # ── Manual overrides ───────────────────────────────────────────
     st.markdown("---")
     st.markdown("**Ajustes manuales** (dejar en 0 = auto-estimación)")
 
@@ -335,7 +362,6 @@ with tab_simulate:
             "Ocupación % (0=auto)", min_value=0.0, max_value=100.0, value=0.0, step=1.0, key="sim_occ"
         )
 
-    # Per-class override
     with st.expander("Ajuste por tipo de vehículo (opcional)"):
         st.markdown("Si introduces valores, se usarán en lugar de la estimación automática.")
         vc1, vc2, vc3, vc4, vc5 = st.columns(5)
@@ -347,7 +373,6 @@ with tab_simulate:
 
         manual_counts_sum = ov_cars + ov_motos + ov_buses + ov_trucks + ov_cycles
 
-    # ── Run simulation ─────────────────────────────────────────────
     if st.button("Simular escenario", type="primary", key="btn_simulate"):
         override_total = ov_total if ov_total > 0 else None
         override_density = ov_density if ov_density > 0 else None
@@ -367,7 +392,6 @@ with tab_simulate:
             if ov_cycles > 0:
                 override_counts["cycle"] = ov_cycles
 
-        # IMPORTANT: scene_id restored here
         result = simulator.simulate(
             sim_datetime=sim_datetime,
             scene_type=scene_type,
@@ -397,7 +421,6 @@ with tab_simulate:
             unsafe_allow_html=True,
         )
 
-        # Metrics row
         mc1, mc2, mc3, mc4, mc5 = st.columns(5)
         mc1.metric("Vehículos", result["total_vehicles"])
         mc2.metric("Ocupación", f"{result['occupancy_pct']:.1f}%")
@@ -454,7 +477,6 @@ with tab_simulate:
             ctx2.write(f"- Evento: {result.get('event_level', 'N/A')}")
             ctx2.write(f"- Ratio carga: {result['load_ratio']:.1%}")
 
-        # ── Hash & Register simulation ─────────────────────────────
         st.markdown("---")
         st.subheader("Trazabilidad de la Simulación")
 
@@ -491,7 +513,7 @@ with tab_simulate:
             st.json(sim_evidence)
 
 # ═══════════════════════════════════════════════════════════════════════
-# TAB 3: VERIFY
+# TAB 3: VERIFY (unchanged)
 # ═══════════════════════════════════════════════════════════════════════
 with tab_verify:
     st.subheader("Verificar integridad de un análisis o simulación")
@@ -571,7 +593,7 @@ with tab_verify:
                 st.error("JSON inválido.")
 
 # ═══════════════════════════════════════════════════════════════════════
-# TAB 4: RECORDS
+# TAB 4: RECORDS (unchanged)
 # ═══════════════════════════════════════════════════════════════════════
 with tab_records:
     st.subheader("Registros recientes")

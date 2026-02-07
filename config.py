@@ -18,6 +18,7 @@ CONFIDENCE_THRESHOLD = float(os.getenv("CONFIDENCE_THRESHOLD", "0.25"))
 DEVICE = os.getenv("DEVICE", "cpu")
 
 # ── Detection classes (COCO subset relevant to traffic) ────────────────
+# YOLO (COCO) class IDs → class name
 VEHICLE_CLASSES = {
     1: "bicycle",
     2: "car",
@@ -26,9 +27,15 @@ VEHICLE_CLASSES = {
     7: "truck",
 }
 
+# ── Class aliases (cross-dataset consistency) ──────────────────────────
+# Some datasets use different labels (e.g., "cycle" instead of "bicycle")
+CLASS_ALIASES = {
+    "cycle": "bicycle",
+}
+
 # ── Metrics ────────────────────────────────────────────────────────────
 GRID_SIZE = 5
-RISK_DENSITY_THRESHOLD = 3  # detections per cell to flag HIGH
+RISK_DENSITY_THRESHOLD = 3  # detections per cell to flag MEDIUM/HIGH
 HEAVY_VEHICLE_CLASSES = {"bus", "truck"}
 
 # ── Heatmap weights by class ──────────────────────────────────────────
@@ -40,6 +47,9 @@ CLASS_WEIGHTS = {
     "truck": 1.5,
 }
 
+# Alias weight (dataset label)
+CLASS_WEIGHTS["cycle"] = 0.3  # kept for backward compatibility
+
 # ── BSV Blockchain ────────────────────────────────────────────────────
 BSV_NETWORK = os.getenv("BSV_NETWORK", "main")
 BSV_PRIVATE_KEY = os.getenv("BSV_PRIVATE_KEY", "")
@@ -50,7 +60,7 @@ WOC_BASE = (
     else "https://api.whatsonchain.com/v1/bsv/main"
 )
 
-# ── Dataset IDs (Kaggle) ─────────────────────────────────────────────
+# ── Dataset IDs (Kaggle) ───────────────────────────────────────────────
 DATASETS = {
     "uav_traffic": {
         "kaggle_id": "sakshamjn/traffic-images-captured-from-uavs",
@@ -66,10 +76,49 @@ DATASETS = {
     },
 }
 
-# ── Collision detection ───────────────────────────────────────────────
-COLLISION_IOU_THRESHOLD = 0.05     # IoU above this = potential collision
-COLLISION_DISTANCE_THRESHOLD = 40  # pixels, centroid distance below this = proximity warning
-ENABLE_PLATE_OCR = True            # attempt license plate OCR on collision
+# ── Collision / Critical-event detection ───────────────────────────────
+# IoU above this = overlap conflict
+COLLISION_IOU_THRESHOLD = 0.05
 
-# ── Heatmap weights extended ──────────────────────────────────────────
-CLASS_WEIGHTS["cycle"] = 0.3  # alias used by roundabout dataset
+# Strong overlap considered "possible collision"
+COLLISION_IOU_HIGH = 0.15
+
+# Pixel distance fallback (only used if normalized distance is off)
+COLLISION_DISTANCE_THRESHOLD = 40
+
+# Use scale-invariant normalized distance (recommended for UAV images)
+COLLISION_USE_NORMALIZED_DISTANCE = True
+
+# Near-miss threshold for normalized distance (distance / avg bbox diagonal)
+# Lower = stricter (fewer near-misses). Recommended range: 0.8–1.3
+COLLISION_DISTANCE_NORM_THRESHOLD = 1.2
+
+# Enable license plate OCR only when incidents exist
+ENABLE_PLATE_OCR = True
+
+# ── Near-miss false-positive suppression (single-image heuristics) ─────
+# These values reduce false positives due to parked vehicles / queues.
+# They operate only for distance-triggered events (NEAR_MISS), not for IoU events.
+#
+# Interpretation:
+# - "same lane" detection uses bbox size as scale:
+#   dx small compared to bbox width and dy large compared to bbox height => likely queue/parked.
+NEARMISS_SAME_LANE_X_FACTOR = 0.55     # dx <= factor * mean_bbox_width
+NEARMISS_SAME_LANE_Y_FACTOR = 0.55     # dy <= factor * mean_bbox_height (alternate orientation)
+NEARMISS_SEPARATION_Y_FACTOR = 1.25    # dy >= factor * mean_bbox_height
+NEARMISS_SEPARATION_X_FACTOR = 1.25    # dx >= factor * mean_bbox_width
+
+# If "queue-like", keep near-miss only if extremely close
+NEARMISS_STRICT_DISTANCE_NORM = 0.65   # lower => fewer false near-misses in queues
+
+# ── Optional: tuning notes (no code uses these) ────────────────────────
+# If you see too many near-misses:
+#   - decrease COLLISION_DISTANCE_NORM_THRESHOLD (e.g., 1.2 -> 1.0)
+#   - decrease NEARMISS_STRICT_DISTANCE_NORM (e.g., 0.65 -> 0.55)
+#
+# If you see too few near-misses:
+#   - increase COLLISION_DISTANCE_NORM_THRESHOLD (e.g., 1.2 -> 1.35)
+#
+# If queued/parked cars still trigger too much:
+#   - increase NEARMISS_SEPARATION_Y_FACTOR (e.g., 1.25 -> 1.5)
+#   - decrease NEARMISS_SAME_LANE_X_FACTOR (e.g., 0.55 -> 0.45)
