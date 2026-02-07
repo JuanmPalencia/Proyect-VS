@@ -10,6 +10,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 import streamlit as st
+from PIL import Image
 
 # Ensure project root is in path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -23,20 +24,28 @@ from src.hashing.integrity import (
     compute_hash,
 )
 from src.blockchain import get_blockchain_adapter
-from src.visualization.overlays import draw_detections, generate_heatmap, draw_density_grid, draw_collisions
+from src.visualization.overlays import (
+    draw_detections,
+    generate_heatmap,
+    draw_density_grid,
+    draw_collisions,
+)
 from src.detection.plate_reader import PlateReader
 from src.simulator import TrafficSimulator
 import config
 
+APP_ICON = Image.open("assets/urban1.png")
+
 # ── Page config ────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="Traffic Aerial Analysis",
-    page_icon="🛣️",
+    page_title="Urban VS",
+    page_icon=APP_ICON,
     layout="wide",
 )
 
-st.title("🛣️ Sistema Inteligente de Análisis de Tráfico Aéreo")
-st.markdown("Detección vehicular en imágenes UAV con evidencia verificable en blockchain BSV")
+st.title("Urban VS")
+st.markdown("### Análisis de Tráfico Aéreo")
+st.markdown("Detección vehicular en imágenes aéreas con evidencia verificable")
 
 
 # ── Cached singletons ─────────────────────────────────────────────────
@@ -73,13 +82,13 @@ plate_reader = load_plate_reader()
 
 # ── Sidebar ────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.header("⚙️ Configuración")
+    st.header("Configuración")
     dataset_id = st.selectbox("Dataset", ["uav_traffic", "roundabout", "upload"])
     is_roundabout = st.checkbox("Escena de rotonda", value=(dataset_id == "roundabout"))
     st.markdown("---")
-    st.header("📋 Modelo")
+    st.header("Modelo")
     st.code(detector.model_version)
-    st.header("🔗 Blockchain")
+    st.header("Blockchain")
     if getattr(chain, "is_configured", False):
         st.success(f"BSV {getattr(chain, 'network', 'main')} (bsv-sdk + ARC)")
         addr = getattr(chain, "address", None)
@@ -90,7 +99,7 @@ with st.sidebar:
 
 # ── Tabs ───────────────────────────────────────────────────────────────
 tab_analyze, tab_simulate, tab_verify, tab_records = st.tabs(
-    ["📸 Analizar", "🔮 Simulador What-If", "✅ Verificar", "📜 Registros"]
+    ["Analizar", "Simulador What-If", "Verificar", "Registros"]
 )
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -152,6 +161,7 @@ with tab_analyze:
             )
             if collision_details:
                 payload["collision_vehicle_details"] = collision_details
+
             analysis_hash = compute_hash(payload)
             evidence = build_evidence_record(payload)
 
@@ -160,25 +170,30 @@ with tab_analyze:
             with col_img:
                 st.subheader("Detecciones")
                 img_det = draw_detections(img_bgr, detections)
-                st.image(cv2.cvtColor(img_det, cv2.COLOR_BGR2RGB),
-                         caption=f"{len(detections)} vehiculos detectados",
-                         use_container_width=True)
+                st.image(
+                    cv2.cvtColor(img_det, cv2.COLOR_BGR2RGB),
+                    caption=f"{len(detections)} vehículos detectados",
+                    use_container_width=True,
+                )
             with col_heat:
                 st.subheader("Mapa de calor")
                 img_heat = generate_heatmap(img_bgr, detections)
-                st.image(cv2.cvtColor(img_heat, cv2.COLOR_BGR2RGB),
-                         caption="Densidad ponderada",
-                         use_container_width=True)
+                st.image(
+                    cv2.cvtColor(img_heat, cv2.COLOR_BGR2RGB),
+                    caption="Densidad ponderada",
+                    use_container_width=True,
+                )
 
             # Collision visualization
             if m_collisions:
                 st.subheader("Colisiones detectadas")
                 img_col = draw_collisions(img_bgr, m_collisions, detections)
                 img_col = draw_detections(img_col, detections)
-                n_col = m_collision_count
-                st.image(cv2.cvtColor(img_col, cv2.COLOR_BGR2RGB),
-                         caption=f"{n_col} posibles colisiones",
-                         use_container_width=True)
+                st.image(
+                    cv2.cvtColor(img_col, cv2.COLOR_BGR2RGB),
+                    caption=f"{m_collision_count} posibles colisiones",
+                    use_container_width=True,
+                )
 
             with st.expander("Mapa de densidad (grid)"):
                 img_grid = draw_density_grid(img_bgr, metrics.density_grid)
@@ -186,10 +201,10 @@ with tab_analyze:
 
             # Metrics
             st.markdown("---")
-            st.subheader("Metricas")
+            st.subheader("Métricas")
             m1, m2, m3, m4, m5 = st.columns(5)
-            m1.metric("Total vehiculos", metrics.total_vehicles)
-            m2.metric("Ocupacion", f"{metrics.occupancy_pct:.1f}%")
+            m1.metric("Total vehículos", metrics.total_vehicles)
+            m2.metric("Ocupación", f"{metrics.occupancy_pct:.1f}%")
             m3.metric("Riesgo", metrics.risk_level)
             m4.metric("Colisiones", m_collision_count)
             if metrics.roundabout_occupancy_pct is not None:
@@ -201,7 +216,7 @@ with tab_analyze:
             for cls, cnt in metrics.counts.items():
                 st.write(f"  - {cls}: **{cnt}**")
 
-            st.markdown("**Ocupacion por zona:**")
+            st.markdown("**Ocupación por zona:**")
             for zone, pct in metrics.zone_occupancy.items():
                 st.progress(pct / 100, text=f"{zone}: {pct:.1f}%")
 
@@ -213,16 +228,20 @@ with tab_analyze:
                     sev = col["severity"]
                     severity_color = {"HIGH": "red", "MEDIUM": "orange", "WARNING": "yellow"}.get(sev, "gray")
                     st.markdown(
-                        f"**Colision #{i+1}** — "
+                        f"**Colisión #{i+1}** — "
                         f":{severity_color}[{sev}] — "
                         f"{col['vehicle_a_class']} vs {col['vehicle_b_class']} "
                         f"(IoU: {col['iou']:.3f}, dist: {col['distance']:.0f}px)"
                     )
 
                 if collision_details:
-                    st.markdown("**Vehiculos involucrados:**")
+                    st.markdown("**Vehículos involucrados:**")
                     for vid in collision_details:
-                        plate_info = "Matricula detectada (hash almacenado)" if vid.get("plate_detected") else "Matricula no legible"
+                        plate_info = (
+                            "Matrícula detectada (hash almacenado)"
+                            if vid.get("plate_detected")
+                            else "Matrícula no legible"
+                        )
                         st.write(
                             f"  - **{vid['class']}** | Color: {vid['dominant_color']} | "
                             f"Pos: {vid['position']} | {plate_info}"
@@ -230,10 +249,10 @@ with tab_analyze:
 
             # Hash & Blockchain
             st.markdown("---")
-            st.subheader("🔐 Evidencia Criptográfica")
+            st.subheader("Evidencia Criptográfica")
             st.code(f"SHA-256: {analysis_hash}", language="text")
 
-            if st.button("📝 Registrar en Blockchain", type="primary", key="reg_analyze"):
+            if st.button("Registrar en Blockchain", type="primary", key="reg_analyze"):
                 with st.spinner("Registrando evidencia (local + broadcast ARC)..."):
                     tx_result = chain.register(evidence)
 
@@ -243,8 +262,8 @@ with tab_analyze:
                     st.markdown(f"[Ver en WhatsOnChain]({tx_result['explorer_url']})")
                 elif status == "local_fallback":
                     st.warning(
-                        f"Guardado localmente (sin fondos on-chain). "
-                        f"Fondea la address para broadcast real."
+                        "Guardado localmente (sin fondos on-chain). "
+                        "Fondea la address para broadcast real."
                     )
                     if tx_result.get("address"):
                         st.code(f"Address BSV: {tx_result['address']}", language="text")
@@ -254,35 +273,49 @@ with tab_analyze:
                 with st.expander("Detalle del registro"):
                     st.json(tx_result)
 
-            with st.expander("📄 JSON canónico"):
+            with st.expander("JSON canónico"):
                 st.code(canonical_json(payload), language="json")
-            with st.expander("📄 Evidence Record"):
+            with st.expander("Evidence Record"):
                 st.json(evidence)
 
-
 # ═══════════════════════════════════════════════════════════════════════
-# TAB 2: WHAT-IF SIMULATOR
+# TAB 2: WHAT-IF SIMULATOR (with scene_id restored)
 # ═══════════════════════════════════════════════════════════════════════
 with tab_simulate:
-    st.subheader("🔮 Simulador de Escenarios de Tráfico")
+    st.subheader("Simulador de Escenarios de Tráfico")
     st.markdown(
         "Simula el estado del tráfico para una **fecha, hora y tipo de escena**. "
-        "Ajusta parámetros manualmente o deja que el sistema estime automáticamente."
+        "Puedes añadir **meteorología** y **evento especial** para escenarios más realistas."
     )
 
     # ── Input panel ────────────────────────────────────────────────
-    col_dt, col_scene, col_name = st.columns(3)
+    col_dt, col_scene, col_meta, col_id = st.columns([1, 1, 1, 1])
     with col_dt:
-        sim_date = st.date_input("📅 Fecha", value=date.today())
-        sim_time = st.time_input("🕐 Hora", value=time(8, 0))
+        sim_date = st.date_input("Fecha", value=date.today(), key="sim_date")
+        sim_time = st.time_input("Hora", value=time(8, 0), key="sim_time")
     with col_scene:
         scene_type = st.selectbox(
-            "🏙️ Tipo de escena",
+            "Tipo de escena",
             ["urban_road", "roundabout", "highway"],
             format_func=lambda x: {"urban_road": "Vía urbana", "roundabout": "Rotonda", "highway": "Autovía"}[x],
+            key="sim_scene_type",
         )
-    with col_name:
-        sim_scene_id = st.text_input("📍 ID de escena", value="zona_centro_01")
+    with col_meta:
+        weather = st.selectbox(
+            "Meteorología",
+            ["soleado", "nublado", "lluvia", "niebla"],
+            format_func=lambda x: {"soleado": "Soleado", "nublado": "Nublado", "lluvia": "Lluvia", "niebla": "Niebla"}[x],
+            key="sim_weather",
+        )
+        event_level = st.selectbox(
+            "Evento especial",
+            ["none", "low", "medium", "high"],
+            format_func=lambda x: {"none": "Ninguno", "low": "Bajo", "medium": "Medio", "high": "Alto"}[x],
+            key="sim_event",
+        )
+    with col_id:
+        sim_scene_id = st.text_input("ID de escena", value="zona_centro_01", key="sim_scene_id")
+        st.caption("Ej: zona_centro_01, rotonda_norte, acceso_autovia")
 
     sim_datetime = datetime.combine(sim_date, sim_time)
 
@@ -294,14 +327,16 @@ with tab_simulate:
     with ov_col1:
         ov_total = st.number_input("Total vehículos (0=auto)", min_value=0, max_value=200, value=0, key="sim_total")
     with ov_col2:
-        ov_density = st.number_input("Densidad promedio (0=auto)", min_value=0.0, max_value=20.0, value=0.0,
-                                      step=0.5, key="sim_density")
+        ov_density = st.number_input(
+            "Densidad promedio (0=auto)", min_value=0.0, max_value=20.0, value=0.0, step=0.5, key="sim_density"
+        )
     with ov_col3:
-        ov_occupancy = st.number_input("Ocupación % (0=auto)", min_value=0.0, max_value=100.0, value=0.0,
-                                        step=1.0, key="sim_occ")
+        ov_occupancy = st.number_input(
+            "Ocupación % (0=auto)", min_value=0.0, max_value=100.0, value=0.0, step=1.0, key="sim_occ"
+        )
 
     # Per-class override
-    with st.expander("🚗 Ajuste por tipo de vehículo (opcional)"):
+    with st.expander("Ajuste por tipo de vehículo (opcional)"):
         st.markdown("Si introduces valores, se usarán en lugar de la estimación automática.")
         vc1, vc2, vc3, vc4, vc5 = st.columns(5)
         ov_cars = vc1.number_input("Coches", min_value=0, max_value=100, value=0, key="sim_car")
@@ -313,11 +348,11 @@ with tab_simulate:
         manual_counts_sum = ov_cars + ov_motos + ov_buses + ov_trucks + ov_cycles
 
     # ── Run simulation ─────────────────────────────────────────────
-    if st.button("🚀 Simular escenario", type="primary", key="btn_simulate"):
-        # Build overrides
+    if st.button("Simular escenario", type="primary", key="btn_simulate"):
         override_total = ov_total if ov_total > 0 else None
         override_density = ov_density if ov_density > 0 else None
         override_occupancy = ov_occupancy if ov_occupancy > 0 else None
+
         override_counts = None
         if manual_counts_sum > 0:
             override_counts = {}
@@ -332,24 +367,25 @@ with tab_simulate:
             if ov_cycles > 0:
                 override_counts["cycle"] = ov_cycles
 
+        # IMPORTANT: scene_id restored here
         result = simulator.simulate(
             sim_datetime=sim_datetime,
             scene_type=scene_type,
             scene_id=sim_scene_id,
+            weather=weather,
+            event_level=event_level,
             override_total=override_total,
             override_counts=override_counts,
             override_density=override_density,
             override_occupancy=override_occupancy,
         )
 
-        # ── Display results ────────────────────────────────────────
         state = result["traffic_state"]
         emoji = simulator.get_state_emoji(state)
         color = simulator.get_state_color(state)
 
         st.markdown("---")
 
-        # Big state indicator
         st.markdown(
             f"<div style='text-align:center; padding:20px; border-radius:12px; "
             f"background-color:{color}22; border:2px solid {color};'>"
@@ -361,8 +397,6 @@ with tab_simulate:
             unsafe_allow_html=True,
         )
 
-        st.markdown("")
-
         # Metrics row
         mc1, mc2, mc3, mc4, mc5 = st.columns(5)
         mc1.metric("Vehículos", result["total_vehicles"])
@@ -371,18 +405,19 @@ with tab_simulate:
         mc4.metric("Carga", f"{result['load_ratio']:.0%}")
         mc5.metric("Capacidad", result["capacity"])
 
-        # Counts
+        cmeta1, cmeta2 = st.columns(2)
+        cmeta1.metric("Clima", {"soleado": "Soleado", "nublado": "Nublado", "lluvia": "Lluvia", "niebla": "Niebla"}[result["weather"]])
+        cmeta2.metric("Evento", {"none": "Ninguno", "low": "Bajo", "medium": "Medio", "high": "Alto"}[result["event_level"]])
+
         st.markdown("**Distribución estimada por tipo:**")
         counts_cols = st.columns(len(result["counts"]) or 1)
         for i, (cls, cnt) in enumerate(result["counts"].items()):
             counts_cols[i % len(counts_cols)].metric(cls.capitalize(), cnt)
 
-        # Density grid visual
         col_grid, col_zones = st.columns(2)
         with col_grid:
             st.markdown("**Mapa de densidad simulado:**")
             grid = result["density_grid"]
-            # Render as a simple colored table
             grid_html = "<table style='width:100%; border-collapse:collapse;'>"
             max_val = max(max(row) for row in grid) if grid else 1
             for row in grid:
@@ -410,26 +445,25 @@ with tab_simulate:
             if result["roundabout_occupancy_pct"] is not None:
                 st.markdown(f"**Ocupación rotonda:** {result['roundabout_occupancy_pct']:.1f}%")
 
-        # Context info
-        with st.expander("📋 Contexto de la simulación"):
+        with st.expander("Contexto de la simulación"):
             ctx1, ctx2 = st.columns(2)
+            ctx1.write(f"- ID escena: {result.get('scene_id', 'N/A')}")
             ctx1.write(f"- Día: {'Fin de semana' if result['is_weekend'] else 'Laborable'}")
-            ctx1.write(f"- Factor horario: {result['time_factor']:.2f}")
-            ctx1.write(f"- Tipo escena: {scene_type}")
-            ctx2.write(f"- Escena: {result['scene_id']}")
-            ctx2.write(f"- Capacidad base: {result['capacity']} veh.")
+            ctx1.write(f"- Factor horario: {result.get('time_factor', 0):.2f}")
+            ctx2.write(f"- Meteo: {result.get('weather', 'N/A')}")
+            ctx2.write(f"- Evento: {result.get('event_level', 'N/A')}")
             ctx2.write(f"- Ratio carga: {result['load_ratio']:.1%}")
 
         # ── Hash & Register simulation ─────────────────────────────
         st.markdown("---")
-        st.subheader("🔐 Trazabilidad de la Simulación")
+        st.subheader("Trazabilidad de la Simulación")
 
         sim_hash = compute_hash(result)
         st.code(f"SHA-256: {sim_hash}", language="text")
 
         sim_evidence = build_evidence_record(result)
 
-        if st.button("📝 Registrar simulación en Blockchain", key="reg_sim"):
+        if st.button("Registrar simulación en Blockchain", key="reg_sim"):
             with st.spinner("Registrando simulación (local + broadcast ARC)..."):
                 tx_result = chain.register(sim_evidence)
 
@@ -439,8 +473,8 @@ with tab_simulate:
                 st.markdown(f"[Ver en WhatsOnChain]({tx_result['explorer_url']})")
             elif status == "local_fallback":
                 st.warning(
-                    f"Guardado localmente (sin fondos on-chain). "
-                    f"Fondea la address para broadcast real."
+                    "Guardado localmente (sin fondos on-chain). "
+                    "Fondea la address para broadcast real."
                 )
                 if tx_result.get("address"):
                     st.code(f"Address BSV: {tx_result['address']}", language="text")
@@ -450,23 +484,22 @@ with tab_simulate:
             with st.expander("Detalle del registro"):
                 st.json(tx_result)
 
-        with st.expander("📄 JSON canónico de la simulación"):
+        with st.expander("JSON canónico de la simulación"):
             st.code(canonical_json(result), language="json")
 
-        with st.expander("📄 Evidence Record"):
+        with st.expander("Evidence Record"):
             st.json(sim_evidence)
-
 
 # ═══════════════════════════════════════════════════════════════════════
 # TAB 3: VERIFY
 # ═══════════════════════════════════════════════════════════════════════
 with tab_verify:
-    st.subheader("✅ Verificar integridad de un análisis o simulación")
+    st.subheader("Verificar integridad de un análisis o simulación")
     st.markdown("Introduce el hash SHA-256 para buscar en el registro blockchain/ledger.")
 
     hash_input = st.text_input("SHA-256 Hash", placeholder="abc123...", key="verify_hash")
 
-    if st.button("🔍 Buscar y verificar", type="primary", key="btn_verify"):
+    if st.button("Buscar y verificar", type="primary", key="btn_verify"):
         if hash_input:
             with st.spinner("Verificando..."):
                 record = chain.verify(hash_input)
@@ -477,7 +510,6 @@ with tab_verify:
         else:
             st.info("Introduce un hash.")
 
-    # Mostrar resultado persistente
     if "verify_result" in st.session_state:
         result = st.session_state["verify_result"]
         if result == "not_found":
@@ -494,7 +526,7 @@ with tab_verify:
                 if result.get("explorer_url"):
                     st.markdown(f"[Ver en WhatsOnChain]({result['explorer_url']})")
             elif is_onchain:
-                st.info(f"Registro con TX on-chain (pendiente de confirmación)")
+                st.info("Registro con TX on-chain (pendiente de confirmación)")
                 explorer = (
                     f"https://test.whatsonchain.com/tx/{txid}"
                     if getattr(chain, "network", "") == "testnet"
@@ -525,7 +557,7 @@ with tab_verify:
     st.markdown("---")
     st.markdown("**Re-verificar desde JSON:**")
     json_input = st.text_area("Pega el JSON canónico del análisis o simulación")
-    if st.button("🔁 Recalcular hash", key="btn_recalc"):
+    if st.button("Recalcular hash", key="btn_recalc"):
         if json_input:
             try:
                 data = json.loads(json_input)
@@ -538,16 +570,21 @@ with tab_verify:
             except json.JSONDecodeError:
                 st.error("JSON inválido.")
 
-
 # ═══════════════════════════════════════════════════════════════════════
 # TAB 4: RECORDS
 # ═══════════════════════════════════════════════════════════════════════
 with tab_records:
-    st.subheader("📜 Registros recientes")
+    st.subheader("Registros recientes")
     records = chain.list_records(limit=30)
     if records:
         for i, rec in enumerate(records):
-            rec_type = "🔮 SIM" if rec.get("scene_id", "").startswith("sim") or rec.get("model_version", "").startswith("simulator") else "📸 IMG"
+            rec_type = (
+                "SIM"
+                if rec.get("model_version", "").startswith("simulator")
+                or rec.get("dataset_id", "") == "simulation"
+                or rec.get("type", "") == "simulation"
+                else "IMG"
+            )
             with st.expander(
                 f"#{i+1} {rec_type} | {rec.get('scene_id', 'N/A')} | {rec.get('timestamp_utc', '')[:19]}"
             ):
