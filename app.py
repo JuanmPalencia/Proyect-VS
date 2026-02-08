@@ -266,6 +266,19 @@ def detect_roundabout(img_bgr: np.ndarray) -> tuple[bool, float]:
         return False, 0.0
 
 
+def _delta_str(va, vb):
+    diff = vb - va
+    if isinstance(diff, (int, np.integer)):
+        sign = "+" if diff > 0 else ""
+        return f"{sign}{int(diff)}"
+    try:
+        diff_f = float(diff)
+        sign = "+" if diff_f > 0 else ""
+        return f"{sign}{diff_f:.1f}"
+    except Exception:
+        return "—"
+
+
 # ── Cached singletons ─────────────────────────────────────────────────
 @st.cache_resource
 def load_detector():
@@ -371,7 +384,6 @@ with tab_analyze:
             analysis_hash = compute_hash(payload)
             evidence = build_evidence_record(payload)
 
-            # ── Visualizations ──
             col_img, col_heat = st.columns(2)
             with col_img:
                 st.markdown("<p class='section-title'>Detecciones</p>", unsafe_allow_html=True)
@@ -404,7 +416,6 @@ with tab_analyze:
                 img_grid = draw_density_grid(img_bgr, metrics.density_grid)
                 st.image(cv2.cvtColor(img_grid, cv2.COLOR_BGR2RGB), use_container_width=True)
 
-            # ── Metrics ──
             st.markdown("---")
             render_density_banner(metrics.traffic_density)
 
@@ -433,7 +444,6 @@ with tab_analyze:
                 for zone, pct in metrics.zone_occupancy.items():
                     st.progress(pct / 100, text=f"{_ZONE_LABELS.get(zone, zone)}: {pct:.1f}%")
 
-            # ✅ Detalle de incidentes críticos (SIN matrícula y SIN "vehículos involucrados")
             if m_collisions:
                 st.markdown("---")
                 st.markdown("<p class='section-title'>Detalle de incidentes criticos</p>", unsafe_allow_html=True)
@@ -466,7 +476,6 @@ with tab_analyze:
                         f"(IoU: {iou:.3f}, dist: {dist_txt}, dist_norm: {norm_txt})"
                     )
 
-            # ── Evidence ──
             st.markdown("---")
             st.markdown("<p class='section-title'>Trazabilidad y evidencia</p>", unsafe_allow_html=True)
             render_evidence_box(analysis_hash)
@@ -476,7 +485,7 @@ with tab_analyze:
                 st.code(canonical_json(payload), language="json")
 
 # ═══════════════════════════════════════════════════════════════════════
-# TAB 2: COMPARE CAPTURES
+# TAB 2: COMPARE CAPTURES  ✅ + TABLA COMPARATIVA
 # ═══════════════════════════════════════════════════════════════════════
 with tab_compare:
     st.markdown("Sube dos imagenes aereas para comparar la situacion del trafico.")
@@ -525,6 +534,7 @@ with tab_compare:
                 h_b, w_b = img_b.shape[:2]
                 met_b = analyzer.analyze(det_b, h_b, w_b, is_roundabout=is_rb_b)
 
+            # ── Visuals ──
             st.markdown("---")
             st.markdown("<p class='section-title'>Detecciones</p>", unsafe_allow_html=True)
             vis_a, vis_b = st.columns(2)
@@ -548,6 +558,48 @@ with tab_compare:
             with den_b:
                 render_density_banner(met_b.traffic_density)
 
+            # ✅ TABLA COMPARATIVA debajo de las imágenes
+            st.markdown("---")
+            st.markdown("<p class='section-title'>Tabla comparativa</p>", unsafe_allow_html=True)
+
+            rows = [
+                ("Total vehiculos", met_a.total_vehicles, met_b.total_vehicles, _delta_str(met_a.total_vehicles, met_b.total_vehicles)),
+                ("Cobertura vehicular (%)", float(met_a.occupancy_pct), float(met_b.occupancy_pct), _delta_str(float(met_a.occupancy_pct), float(met_b.occupancy_pct))),
+                ("Nivel de riesgo", met_a.risk_level, met_b.risk_level, "—"),
+                ("Posibles incidentes", int(getattr(met_a, "collision_count", 0)), int(getattr(met_b, "collision_count", 0)),
+                 _delta_str(int(getattr(met_a, "collision_count", 0)), int(getattr(met_b, "collision_count", 0)))),
+                ("Densidad de trafico", met_a.traffic_density, met_b.traffic_density, "—"),
+            ]
+
+            # Rotonda (si aplica en cualquiera)
+            if met_a.roundabout_occupancy_pct is not None or met_b.roundabout_occupancy_pct is not None:
+                ra = met_a.roundabout_level if met_a.roundabout_occupancy_pct is not None else "—"
+                rb = met_b.roundabout_level if met_b.roundabout_occupancy_pct is not None else "—"
+                rows.append(("Rotonda (nivel)", ra, rb, "—"))
+
+                oa = float(met_a.roundabout_occupancy_pct) if met_a.roundabout_occupancy_pct is not None else None
+                ob = float(met_b.roundabout_occupancy_pct) if met_b.roundabout_occupancy_pct is not None else None
+                if oa is not None or ob is not None:
+                    va = oa if oa is not None else 0.0
+                    vb = ob if ob is not None else 0.0
+                    rows.append(("Ocupacion rotonda (%)", f"{oa:.1f}%" if oa is not None else "—", f"{ob:.1f}%" if ob is not None else "—",
+                                _delta_str(va, vb) + "%" if (oa is not None and ob is not None) else "—"))
+
+            # Conteo por clase (unión de claves)
+            all_classes = sorted(set(list(met_a.counts.keys()) + list(met_b.counts.keys())))
+            for cls in all_classes:
+                ca = int(met_a.counts.get(cls, 0))
+                cb = int(met_b.counts.get(cls, 0))
+                rows.append((f"Conteo {_CLS_LABELS.get(cls, cls)}", ca, cb, _delta_str(ca, cb)))
+
+            # Render en markdown table
+            table_md = "| Metrica | Captura A | Captura B | Diferencia (B - A) |\n"
+            table_md += "|:--------|:---------:|:---------:|:------------------:|\n"
+            for name, va, vb, delta in rows:
+                table_md += f"| {name} | {va} | {vb} | {delta} |\n"
+            st.markdown(table_md)
+
+            # ── Evidence ──
             st.markdown("---")
             st.markdown("<p class='section-title'>Trazabilidad de la comparacion</p>", unsafe_allow_html=True)
 
@@ -574,6 +626,7 @@ with tab_compare:
                 collision_count=met_b.collision_count,
                 collisions=met_b.collisions if met_b.collisions else None,
             )
+
             hash_a = compute_hash(payload_a)
             hash_b = compute_hash(payload_b)
             ev_a = build_evidence_record(payload_a)
@@ -744,7 +797,7 @@ with tab_verify:
                 st.error("El JSON introducido no es valido.")
 
 # ═══════════════════════════════════════════════════════════════════════
-# TAB 5: RECORDS (sin expanders anidados)
+# TAB 5: RECORDS
 # ═══════════════════════════════════════════════════════════════════════
 with tab_records:
     st.markdown("Ultimos registros guardados en el ledger.")
