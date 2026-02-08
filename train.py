@@ -101,11 +101,11 @@ def prepare_data_if_needed(data_path: Path, force_prepare: bool = False):
     try:
         # Try to import the setup script as a module
         import importlib.util
-        setup_script = Path(__file__).parent / "setup_data_fixed.py"
+        setup_script = Path(__file__).parent / "setup_train.py"
 
         if not setup_script.exists():
             print(f"[ERROR] Setup script not found: {setup_script}")
-            print("   Please run: python setup_data_fixed.py")
+            print("   Please run: python setup_train.py")
             sys.exit(1)
 
         # Load and execute setup script
@@ -130,7 +130,7 @@ def prepare_data_if_needed(data_path: Path, force_prepare: bool = False):
     except Exception as e:
         print(f"\n[ERROR] Error during data preparation: {e}")
         print("\nPlease run manually:")
-        print("   python setup_data_fixed.py")
+        print("   python setup_train.py")
         sys.exit(1)
 
 
@@ -166,7 +166,7 @@ def main():
     # Verify data path exists
     if not data_path.exists():
         print(f"\n[ERROR] Data file not found: {data_path}")
-        print("   Please check the path or run: python setup_data_fixed.py")
+        print("   Please check the path or run: python setup_train.py")
         sys.exit(1)
 
     print("\n" + "=" * 70)

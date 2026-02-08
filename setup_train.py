@@ -8,7 +8,7 @@ This script:
 5. Creates unified data.yaml
 
 Usage:
-    python setup_data_fixed.py
+    python setup_train.py
 """
 
 import shutil
