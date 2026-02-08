@@ -10,7 +10,7 @@
 
 ---
 
-## 🌟 Capacidades del Sistema
+## Capacidades del Sistema
 
 Urban VS automatiza el ciclo completo de análisis de tráfico aéreo:
 
@@ -26,7 +26,7 @@ Urban VS automatiza el ciclo completo de análisis de tráfico aéreo:
 
 ---
 
-## 🚀 Características Principales
+## Características Principales
 
 ### Detección con YOLOv8 Fine-Tuned
 
@@ -63,7 +63,7 @@ Esta herramienta responde preguntas de planificación críticas: *¿Qué ocurre 
 
 ---
 
-## 📦 Instalación y Configuración
+## Instalación y Configuración
 
 ### Instalación
 
@@ -86,7 +86,7 @@ Este comando instalará todas las dependencias necesarias:
 
 ### Configuración Blockchain (Ya Lista para Usar)
 
-**🎉 Buena noticia**: El sistema viene **preconfigurado con una clave privada BSV válida y fondeada**. Esto significa que puedes comenzar a usar el registro blockchain inmediatamente sin necesidad de:
+**Buena noticia**: El sistema viene **preconfigurado con una clave privada BSV válida y fondeada**. Esto significa que puedes comenzar a usar el registro blockchain inmediatamente sin necesidad de:
 
 - Crear tu propia wallet BSV
 - Adquirir BSV en exchanges
@@ -110,7 +110,7 @@ La clave incluida tiene suficiente balance para realizar **cientos de registros 
 
 ---
 
-## 🎯 Uso del Sistema
+## Uso del Sistema
 
 ### Opción 1: Uso Directo de la Aplicación (Recomendado)
 
@@ -124,7 +124,7 @@ La aplicación se abrirá automáticamente en tu navegador (`http://localhost:85
 
 #### Funcionalidades de la Aplicación
 
-**1. 📊 Análisis de Imágenes**
+**1. Análisis de Imágenes**
 
 - Sube una imagen aérea (JPG/PNG, hasta 5MB)
 - Marca si es una rotonda (activa análisis especializado)
@@ -137,21 +137,21 @@ La aplicación se abrirá automáticamente en tu navegador (`http://localhost:85
   - Hash SHA-256 del análisis
   - Transacción blockchain con enlace al explorador
 
-**2. 🔍 Verificación de Evidencia**
+**2. Verificación de Evidencia**
 
 - Ingresa un hash SHA-256 de un análisis previo
 - Verifica su existencia en blockchain
 - Consulta metadatos completos (timestamp, métricas, txid)
 - Accede al explorador blockchain para ver la transacción confirmada
 
-**3. 🎮 Simulador** 
+**3. Simulador** 
 
 - Configura escenario: fecha/hora, tipo de escena, clima, eventos
 - Ajusta cantidad de vehículos por tipo (sliders interactivos)
 - Observa métricas en tiempo real
 - Compara diferentes escenarios para planificación
 
-**4. 📜 Registro de Evidencia**
+**4. Registro de Evidencia**
 
 - Lista todos los análisis históricos
 - Filtra por dataset, ordena por fecha
@@ -164,7 +164,7 @@ La aplicación se abrirá automáticamente en tu navegador (`http://localhost:85
 
 Si deseas experimentar con el entrenamiento o usar tus propios datasets:
 
-#### ⚠️ Nota sobre los Datasets
+#### Nota sobre los Datasets
 
 **La carpeta `data/` contiene únicamente una pequeña muestra (~50 imágenes) para demostración.** Estas muestras son suficientes para:
 
@@ -232,7 +232,7 @@ python cli.py verify e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b785
 
 ---
 
-## 🌐 API REST (Desarrollo Futuro)
+## API REST (Desarrollo Futuro)
 
 > **Nota**: La API REST está completamente implementada en el código (`api.py`) y es funcional. Sin embargo, se presenta como funcionalidad de desarrollo futuro para mantener el foco en la demostración de la interfaz Streamlit durante la evaluación del hackathon.
 
@@ -288,7 +288,7 @@ print(f"TX Blockchain: {result['tx_id']}")
 
 ---
 
-## 🏗️ Arquitectura del Sistema
+## Arquitectura del Sistema
 
 Urban VS sigue una **arquitectura modular de capas** donde cada componente tiene responsabilidades claramente definidas:
 
@@ -351,7 +351,7 @@ Urban VS sigue una **arquitectura modular de capas** donde cada componente tiene
 
 ---
 
-## 📊 Datasets y Entrenamiento
+## Datasets y Entrenamiento
 
 ### Datasets Utilizados
 
@@ -392,7 +392,7 @@ Resultados en validación (traffic_finetune4):
 
 ---
 
-## 🔐 Blockchain y Verificación
+## Blockchain y Verificación
 
 ### ¿Por Qué Blockchain?
 
@@ -427,7 +427,7 @@ Fee    → ~100-150 satoshis (~$0.00004 USD)
 
 ---
 
-## 📖 Documentación Técnica
+## Documentación Técnica
 
 **Documentación completa disponible en**: [`DOCUMENTACION_TECNICA.docx`](DOCUMENTACION_TECNICA.docx)
 
@@ -445,7 +445,7 @@ Este documento Word de ~15 páginas incluye:
 
 ---
 
-## 🚀 Desarrollo Futuro
+## Desarrollo Futuro
 
 El proyecto evoluciona en tres horizontes temporales con objetivos claros:
 
@@ -457,7 +457,7 @@ El proyecto evoluciona en tres horizontes temporales con objetivos claros:
 
 ---
 
-## 🎓 Casos de Uso y Aplicaciones
+## Casos de Uso y Aplicaciones
 
 ### Gestión Municipal
 
@@ -489,7 +489,7 @@ El proyecto evoluciona en tres horizontes temporales con objetivos claros:
 
 ---
 
-## 🛠️ Tecnologías Utilizadas
+## Tecnologías Utilizadas
 
 | Categoría               | Tecnología          | Propósito                              |
 | ------------------------ | -------------------- | --------------------------------------- |
@@ -504,7 +504,7 @@ El proyecto evoluciona en tres horizontes temporales con objetivos claros:
 
 ---
 
-## 📜 Licencia
+## Licencia
 
 Este proyecto ha sido desarrollado para **NeuralHack 2026**.
 
