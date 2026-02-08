@@ -784,17 +784,6 @@ with tab_verify:
             with st.expander("Ver registro completo (JSON)", expanded=False):
                 st.json(result)
 
-    st.markdown("---")
-    st.markdown("<p class='section-title'>Recalcular huella digital desde datos</p>", unsafe_allow_html=True)
-    json_input = st.text_area("JSON del analisis", key="verify_json", height=120)
-    if st.button("Recalcular", key="btn_recalc"):
-        if json_input:
-            try:
-                data = json.loads(json_input)
-                recalc = compute_hash(data)
-                render_evidence_box(recalc)
-            except json.JSONDecodeError:
-                st.error("El JSON introducido no es valido.")
 
 # ═══════════════════════════════════════════════════════════════════════
 # TAB 5: RECORDS
