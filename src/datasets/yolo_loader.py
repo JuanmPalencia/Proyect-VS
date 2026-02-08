@@ -1,4 +1,4 @@
-"""Loader for YOLO-format datasets (Dataset 1: UAV Traffic Images)."""
+"""Cargador para datasets formato YOLO (Dataset 1: Imágenes de Tráfico UAV)."""
 
 from __future__ import annotations
 
@@ -10,17 +10,17 @@ from .base import BaseDatasetLoader, ImageSample
 
 logger = logging.getLogger(__name__)
 
-# Dataset 1 class mapping (from the YOLO label files)
+# Mapeo de clases del Dataset 1 (desde los archivos de etiquetas YOLO)
 _DEFAULT_CLASSES = {0: "car", 1: "motorcycle"}
 
 
 class YOLODatasetLoader(BaseDatasetLoader):
-    """Iterates images + YOLO .txt labels side-by-side.
+    """Itera imágenes + etiquetas YOLO .txt lado a lado.
 
-    Expected layout (flexible – auto-discovers):
+    Estructura esperada (flexible – auto-descubre):
         <root>/images/{split}/*.jpg
         <root>/labels/{split}/*.txt
-    OR flat:
+    O plano:
         <root>/images/*.jpg
         <root>/labels/*.txt
     """
@@ -31,7 +31,7 @@ class YOLODatasetLoader(BaseDatasetLoader):
         self.class_map = class_map or _DEFAULT_CLASSES
 
     def _find_image_dirs(self) -> list[Path]:
-        """Find directories containing images."""
+        """Encuentra directorios que contienen imágenes."""
         candidates = []
         for p in self.root.rglob("*.jpg"):
             if p.parent not in candidates:
@@ -42,9 +42,9 @@ class YOLODatasetLoader(BaseDatasetLoader):
         return candidates
 
     def _find_label_for_image(self, img_path: Path) -> Path | None:
-        """Given an image, find its YOLO .txt label file."""
+        """Dada una imagen, encuentra su archivo de etiquetas YOLO .txt."""
         stem = img_path.stem
-        # Try sibling labels/ directory
+        # Intentar el directorio hermano labels/
         for labels_dir in [
             img_path.parent.parent / "labels" / img_path.parent.name,
             img_path.parent.parent / "labels",
@@ -57,7 +57,7 @@ class YOLODatasetLoader(BaseDatasetLoader):
         return None
 
     def _parse_yolo_label(self, label_path: Path, img_w: int, img_h: int) -> list[dict]:
-        """Parse YOLO format: class_id cx cy w h (normalized)."""
+        """Parsea formato YOLO: class_id cx cy w h (normalizado)."""
         labels = []
         for line in label_path.read_text().strip().splitlines():
             parts = line.strip().split()
@@ -65,7 +65,7 @@ class YOLODatasetLoader(BaseDatasetLoader):
                 continue
             cls_id = int(parts[0])
             cx, cy, w, h = map(float, parts[1:5])
-            # Convert normalized center coords to absolute xyxy
+            # Convertir coordenadas del centro normalizadas a xyxy absolutas
             x1 = (cx - w / 2) * img_w
             y1 = (cy - h / 2) * img_h
             x2 = (cx + w / 2) * img_w
@@ -89,7 +89,7 @@ class YOLODatasetLoader(BaseDatasetLoader):
         for img_dir in img_dirs:
             for ext in ("*.jpg", "*.png", "*.jpeg"):
                 for img_path in sorted(img_dir.glob(ext)):
-                    # Read image just for dimensions (for label parsing)
+                    # Leer la imagen solo para dimensiones (para poder parsear etiquetas)
                     img = cv2.imread(str(img_path))
                     if img is None:
                         continue

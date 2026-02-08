@@ -1,4 +1,4 @@
-"""Deterministic hashing and evidence record construction."""
+"""Construcción de hash determinístico y registro de evidencia."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ import numpy as np
 
 
 def _json_default(obj: Any) -> Any:
-    """Handle numpy types and other non-native objects for JSON serialization."""
+    """Maneja tipos numpy y otros objetos no nativos para serialización JSON."""
     if isinstance(obj, np.integer):
         return int(obj)
     if isinstance(obj, np.floating):
@@ -22,12 +22,12 @@ def _json_default(obj: Any) -> Any:
 
 
 def canonical_json(data: dict[str, Any]) -> str:
-    """Serialize dict to a deterministic canonical JSON string.
+    """Serializa dict a una cadena JSON canónica determinística.
 
-    - Keys sorted recursively
-    - No whitespace (compact separators)
-    - Ensure_ascii for cross-platform reproducibility
-    - Handles numpy types via custom default handler
+    - Claves ordenadas recursivamente
+    - Sin espacios en blanco (separadores compactos)
+    - Ensure_ascii para reproducibilidad multiplataforma
+    - Maneja tipos numpy vía manejador default personalizado
     """
     return json.dumps(
         data, sort_keys=True, separators=(",", ":"),
@@ -36,11 +36,11 @@ def canonical_json(data: dict[str, Any]) -> str:
 
 
 def compute_hash(data: dict[str, Any]) -> str:
-    """SHA-256 hash of the canonical JSON representation.
+    """Hash SHA-256 de la representación JSON canónica.
 
-    Normalizes data via JSON round-trip first to ensure that
-    numpy types, float precision, etc. produce the same hash
-    whether computed from the original dict or from re-parsed JSON.
+    Normaliza los datos vía ida y vuelta JSON primero para asegurar que
+    los tipos numpy, precisión de floats, etc. produzcan el mismo hash
+    ya sea calculado desde el dict original o desde JSON re-parseado.
     """
     normalized = json.loads(canonical_json(data))
     canonical = json.dumps(
@@ -50,7 +50,7 @@ def compute_hash(data: dict[str, Any]) -> str:
 
 
 def compute_file_hash(file_path: str) -> str:
-    """SHA-256 hash of a file's binary content."""
+    """Hash SHA-256 del contenido binario de un archivo."""
     sha = hashlib.sha256()
     with open(file_path, "rb") as f:
         for chunk in iter(lambda: f.read(8192), b""):
@@ -74,7 +74,7 @@ def build_analysis_payload(
     collisions: list[dict] | None = None,
     geo: dict | None = None,
 ) -> dict[str, Any]:
-    """Build the canonical analysis payload (before hashing)."""
+    """Construye el payload canónico de análisis (antes del hash)."""
     payload: dict[str, Any] = {
         "scene_id": scene_id,
         "dataset_id": dataset_id,
@@ -102,9 +102,9 @@ def build_evidence_record(
     analysis_payload: dict[str, Any],
     image_hash: str | None = None,
 ) -> dict[str, Any]:
-    """Build the evidence record to be sent to blockchain.
+    """Construye el registro de evidencia para enviar a blockchain.
 
-    Contains the analysis_hash plus metadata for lookup.
+    Contiene el analysis_hash más metadatos para búsqueda.
     """
     analysis_hash = compute_hash(analysis_payload)
     record = {
@@ -120,5 +120,5 @@ def build_evidence_record(
 
 
 def verify_integrity(analysis_payload: dict[str, Any], expected_hash: str) -> bool:
-    """Recompute hash and verify it matches the stored one."""
+    """Recalcula el hash y verifica que coincida con el almacenado."""
     return compute_hash(analysis_payload) == expected_hash

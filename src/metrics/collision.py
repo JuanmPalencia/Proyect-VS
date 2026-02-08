@@ -1,4 +1,4 @@
-"""Collision / critical-event detection between vehicles based on bounding box analysis."""
+"""Detección de colisiones / eventos críticos entre vehículos basada en análisis de cajas delimitadoras."""
 
 from __future__ import annotations
 
@@ -10,11 +10,11 @@ from src.detection.detector import Detection
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Helpers
+# Funciones auxiliares
 # ──────────────────────────────────────────────────────────────────────
 
 def _sanitize_bbox(bbox: list[float]) -> list[float]:
-    """Ensure bbox is valid [x1,y1,x2,y2] with x2>x1 and y2>y1."""
+    """Asegura que bbox sea válido [x1,y1,x2,y2] con x2>x1 y y2>y1."""
     x1, y1, x2, y2 = bbox
     if x2 < x1:
         x1, x2 = x2, x1
@@ -24,7 +24,7 @@ def _sanitize_bbox(bbox: list[float]) -> list[float]:
 
 
 def compute_iou(bbox1: list[float], bbox2: list[float]) -> float:
-    """Compute Intersection over Union between two bboxes [x1,y1,x2,y2]."""
+    """Calcula intersección sobre unión entre dos cajas [x1,y1,x2,y2]."""
     x1_1, y1_1, x2_1, y2_1 = _sanitize_bbox(bbox1)
     x1_2, y1_2, x2_2, y2_2 = _sanitize_bbox(bbox2)
 
@@ -45,7 +45,7 @@ def compute_iou(bbox1: list[float], bbox2: list[float]) -> float:
 
 
 def compute_centroid_distance(det1: Detection, det2: Detection) -> float:
-    """Euclidean distance between centroids of two detections."""
+    """Distancia euclidiana entre centroides de dos detecciones."""
     cx1, cy1 = det1.centroid
     cx2, cy2 = det2.centroid
     return math.sqrt((cx2 - cx1) ** 2 + (cy2 - cy1) ** 2)
@@ -62,7 +62,7 @@ def _bbox_diagonal(bbox: list[float]) -> float:
 
 
 def _classify_severity(iou: float, dist_norm: float | None) -> str:
-    """Classify severity based on IoU and normalized distance."""
+    """Clasifica severidad basada en IoU y distancia normalizada."""
     if iou >= config.COLLISION_IOU_HIGH:
         return "HIGH"
     if iou >= config.COLLISION_IOU_THRESHOLD:
@@ -73,7 +73,7 @@ def _classify_severity(iou: float, dist_norm: float | None) -> str:
 
 
 def _event_type(iou: float, triggered_by_iou: bool) -> str:
-    """Classify event type for better interpretability in the report/demo."""
+    """Clasifica tipo de evento para mejor interpretabilidad en el reporte/demo."""
     if iou >= config.COLLISION_IOU_HIGH:
         return "POSSIBLE_COLLISION"
     if triggered_by_iou:
@@ -83,12 +83,12 @@ def _event_type(iou: float, triggered_by_iou: bool) -> str:
 
 def _looks_like_same_trajectory_pair(det_a: Detection, det_b: Detection) -> bool:
     """
-    Heuristic to suppress NEAR_MISS false positives in single images:
-    - Vehicles aligned (one behind another) / parked in a row / stopped queue.
-    Without motion, we approximate "same trajectory" by geometry:
-      * very small lateral offset (dx small) + large longitudinal separation (dy large)
-      OR
-      * very small vertical offset (dy small) + large horizontal separation (dx large)
+    Heurística para suprimir falsos positivos de NEAR_MISS en imágenes únicas:
+    - Vehículos alineados (uno detrás de otro) / estacionados en fila / cola detenida.
+    Sin movimiento, aproximamos "misma trayectoria" por geometría:
+      * desplazamiento lateral muy pequeño (dx pequeño) + gran separación longitudinal (dy grande)
+      O
+      * desplazamiento vertical muy pequeño (dy pequeño) + gran separación horizontal (dx grande)
     """
     ax, ay = det_a.centroid
     bx, by = det_b.centroid
@@ -100,17 +100,17 @@ def _looks_like_same_trajectory_pair(det_a: Detection, det_b: Detection) -> bool
     mean_w = (wa + wb) / 2.0 if (wa + wb) > 0 else 1.0
     mean_h = (ha + hb) / 2.0 if (ha + hb) > 0 else 1.0
 
-    # Tunable factors (with safe defaults)
-    # "small" lateral offset threshold
+    # Factores ajustables (con valores seguros por defecto)
+    # umbral de desplazamiento lateral "pequeño"
     same_lane_x = getattr(config, "NEARMISS_SAME_LANE_X_FACTOR", 0.55)   # * mean_w
     same_lane_y = getattr(config, "NEARMISS_SAME_LANE_Y_FACTOR", 0.55)   # * mean_h
-    # "large" longitudinal separation threshold
+    # umbral de separación longitudinal "grande"
     sep_y = getattr(config, "NEARMISS_SEPARATION_Y_FACTOR", 1.25)        # * mean_h
     sep_x = getattr(config, "NEARMISS_SEPARATION_X_FACTOR", 1.25)        # * mean_w
 
-    # Case 1: stacked vertically (same lane / queue)
+    # Caso 1: apilados verticalmente (mismo carril / cola)
     stacked = (dx <= same_lane_x * mean_w) and (dy >= sep_y * mean_h)
-    # Case 2: stacked horizontally (less common, but helps some camera orientations)
+    # Caso 2: apilados horizontalmente (menos común, pero ayuda con algunas orientaciones de cámara)
     side_by_side_queue = (dy <= same_lane_y * mean_h) and (dx >= sep_x * mean_w)
 
     return stacked or side_by_side_queue
@@ -118,27 +118,27 @@ def _looks_like_same_trajectory_pair(det_a: Detection, det_b: Detection) -> bool
 
 def _should_keep_near_miss(iou: float, dist_norm: float | None, det_a: Detection, det_b: Detection) -> bool:
     """
-    Decide whether a distance-triggered NEAR_MISS is meaningful.
-    We keep it if it is very close OR if it doesn't look like same-trajectory/parked queue.
+    Decide si un NEAR_MISS activado por distancia es significativo.
+    Lo mantenemos si está muy cerca O si no parece misma-trayectoria/cola estacionada.
 
-    This is the key filter that reduces false positives from parked cars.
+    Este es el filtro clave que reduce falsos positivos de autos estacionados.
     """
     if dist_norm is None:
-        # if we don't have normalized distance, keep as-is (fallback behavior)
+        # si no tenemos distancia normalizada, mantener tal cual (comportamiento de respaldo)
         return True
 
-    # Strict near-miss threshold (only for "same trajectory" situations)
+    # Umbral estricto de near-miss (solo para situaciones de "misma trayectoria")
     strict = getattr(config, "NEARMISS_STRICT_DISTANCE_NORM", 0.65)
 
     if _looks_like_same_trajectory_pair(det_a, det_b):
-        # Only keep if extremely close (otherwise it's likely parked/queue)
+        # Solo mantener si extremadamente cerca (de otro modo es probablemente estacionado/cola)
         return dist_norm <= strict
 
     return True
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Main
+# Principal
 # ──────────────────────────────────────────────────────────────────────
 
 def detect_collisions(
@@ -147,14 +147,14 @@ def detect_collisions(
     distance_threshold: float | None = None,
 ) -> list[dict[str, Any]]:
     """
-    Detect potential critical events between vehicles.
+    Detecta eventos críticos potenciales entre vehículos.
 
-    Trigger when:
-    - IoU > iou_threshold (bbox overlap), OR
-    - Normalized centroid distance < COLLISION_DISTANCE_NORM_THRESHOLD (if enabled), OR
-    - Centroid distance < distance_threshold (fallback in pixels)
+    Se activa cuando:
+    - IoU > iou_threshold (solapamiento de cajas), O
+    - Distancia de centroide normalizada < COLLISION_DISTANCE_NORM_THRESHOLD (si está habilitado), O
+    - Distancia de centroide < distance_threshold (respaldo en píxeles)
 
-    Returns list of event records with involved vehicles and severity.
+    Devuelve lista de registros de eventos con vehículos involucrados y severidad.
     """
     iou_thresh = iou_threshold or config.COLLISION_IOU_THRESHOLD
     dist_thresh = distance_threshold or config.COLLISION_DISTANCE_THRESHOLD
@@ -167,14 +167,14 @@ def detect_collisions(
             det_a = detections[i]
             det_b = detections[j]
 
-            # Confidence gating (reduces false positives)
+            # Control de confianza (reduce falsos positivos)
             if min(det_a.confidence, det_b.confidence) < conf_thresh:
                 continue
 
             iou = compute_iou(det_a.bbox, det_b.bbox)
             distance = compute_centroid_distance(det_a, det_b)
 
-            # Normalized distance (scale-invariant)
+            # Distancia normalizada (independiente de escala)
             dist_norm = None
             if getattr(config, "COLLISION_USE_NORMALIZED_DISTANCE", False):
                 diag_a = _bbox_diagonal(det_a.bbox)
@@ -187,7 +187,7 @@ def detect_collisions(
             triggered_by_dist = False
             trigger = False
 
-            # Trigger condition
+            # Condición de activación
             if iou > iou_thresh:
                 trigger = True
                 triggered_by_iou = True
@@ -198,7 +198,7 @@ def detect_collisions(
                 trigger = distance < dist_thresh
                 triggered_by_dist = trigger
 
-            # Extra filter: suppress low-value NEAR_MISS (parked/queue-like)
+            # Filtro extra: suprimir NEAR_MISS de bajo valor (estacionados/cola)
             if trigger and triggered_by_dist and (iou < iou_thresh):
                 if not _should_keep_near_miss(iou, dist_norm, det_a, det_b):
                     continue
@@ -221,7 +221,7 @@ def detect_collisions(
                     "severity": severity,
                 })
 
-    # Sort by severity (HIGH first)
+    # Ordenar por severidad (HIGH primero)
     severity_order = {"HIGH": 0, "MEDIUM": 1, "WARNING": 2}
     collisions.sort(key=lambda c: severity_order.get(c["severity"], 3))
 

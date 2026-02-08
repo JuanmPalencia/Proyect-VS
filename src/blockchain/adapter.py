@@ -1,54 +1,48 @@
-"""Blockchain adapter: BSV on-chain (OP_RETURN via bsv-sdk + ARC) + local ledger."""
+"""Adaptador de Blockchain: BSV On-Chain (OP_RETURN via bsv-sdk + ARC) + registro local."""
 
 from __future__ import annotations
-
 import json
 import logging
 import uuid
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
-
 import requests
-
 import config
 
 logger = logging.getLogger(__name__)
 
-# ── Protocol prefix for OP_RETURN data ────────────────────────────────
+# ── Prefijo del protocolo para datos OP_RETURN ────────────────────────────────
 APP_PREFIX = "TRAFFIC_EVIDENCE"
 APP_VERSION = "v1.0"
 
 
 class BlockchainAdapter(ABC):
-    """Abstract interface for evidence registration."""
+    """Interfaz abstracta para el registro de evidencia."""
 
     @abstractmethod
     def register(self, evidence_record: dict[str, Any]) -> dict[str, Any]:
-        """Register evidence. Returns {tx_id, status, ...}."""
+        """Registra la evidencia. Devuelve {tx_id, status, ...}."""
         ...
 
     @abstractmethod
     def verify(self, analysis_hash: str) -> dict[str, Any] | None:
-        """Look up registered evidence by analysis_hash."""
+        """Busca evidencia registrada por su analysis_hash."""
         ...
 
     @abstractmethod
     def list_records(self, limit: int = 50) -> list[dict[str, Any]]:
-        """List recent evidence records."""
+        """Lista los registros de evidencia más recientes."""
         ...
 
 
-# ═══════════════════════════════════════════════════════════════════════
-# BSV ON-CHAIN ADAPTER (bsv-sdk + ARC broadcaster)
-# ═══════════════════════════════════════════════════════════════════════
 
 class BSVAdapter(BlockchainAdapter):
-    """Real BSV blockchain adapter using bsv-sdk for OP_RETURN transactions.
+    """Adaptador real de blockchain BSV usando bsv-sdk para transacciones OP_RETURN.
 
-    Uses ARC (https://arc.gorillapool.io) for broadcasting and
-    WhatsOnChain API for UTXO lookups and tx verification.
-    All records are also saved to local ledger for fast lookups.
+    Usa ARC (https://arc.gorillapool.io) para transmisión y
+    la API de WhatsOnChain para consultas UTXO y verificación de transacciones.
+    Todos los registros también se guardan en un libro local para consultas rápidas.
     """
 
     def __init__(self):
@@ -56,7 +50,7 @@ class BSVAdapter(BlockchainAdapter):
         self.network = config.BSV_NETWORK  # "main" or "testnet"
         self.arc_url = config.ARC_URL
         self.woc_base = config.WOC_BASE
-        self._local = LocalLedgerAdapter()  # always keep local copy
+        self._local = LocalLedgerAdapter()  # siempre mantener una copia local
 
         self._key = None
         self._address = None
@@ -67,7 +61,7 @@ class BSVAdapter(BlockchainAdapter):
             self._init_key()
 
     def _init_key(self):
-        """Initialize bsv-sdk PrivateKey from WIF."""
+        """Inicializa la PrivateKey de bsv-sdk desde WIF."""
         try:
             from bsv import PrivateKey
             self._key = PrivateKey(self.private_key_wif)
@@ -85,10 +79,10 @@ class BSVAdapter(BlockchainAdapter):
     def address(self) -> str | None:
         return self._address
 
-    # ── UTXO fetching via WhatsOnChain ────────────────────────────────
+    # ── Obtención de UTXO vía WhatsOnChain ────────────────────────────────
 
     def _fetch_utxos(self) -> list[dict]:
-        """Fetch unspent outputs for our address from WhatsOnChain."""
+        """Obtiene las salidas no gastadas para nuestra dirección desde WhatsOnChain."""
         url = f"{self.woc_base}/address/{self._address}/unspent"
         resp = requests.get(url, timeout=15)
         resp.raise_for_status()
@@ -97,16 +91,16 @@ class BSVAdapter(BlockchainAdapter):
         return utxos
 
     def _fetch_raw_tx(self, txid: str) -> str:
-        """Fetch raw transaction hex from WhatsOnChain."""
+        """Obtiene el hexadecimal de la transacción raw desde WhatsOnChain."""
         url = f"{self.woc_base}/tx/{txid}/hex"
         resp = requests.get(url, timeout=15)
         resp.raise_for_status()
         return resp.text.strip()
 
-    # ── Transaction building ──────────────────────────────────────────
+    # ── Construcción de transacciones ──────────────────────────────────────────
 
     def _build_op_return_tx(self, analysis_hash: str, scene_id: str) -> Any:
-        """Build a signed OP_RETURN transaction using bsv-sdk."""
+        """Construye una transacción OP_RETURN firmada usando bsv-sdk."""
         from bsv import (
             Transaction, TransactionInput, TransactionOutput,
             P2PKH, OpReturn,
@@ -119,7 +113,7 @@ class BSVAdapter(BlockchainAdapter):
                 "Fund the address to broadcast on-chain."
             )
 
-        # Pick the first UTXO with enough satoshis (OP_RETURN txs are cheap)
+        # Elegir el primer UTXO con suficientes satoshis (no necesita muchos)
         utxo = max(utxos, key=lambda u: u["value"])
         source_txid = utxo["tx_hash"]
         source_vout = utxo["tx_pos"]
@@ -130,14 +124,14 @@ class BSVAdapter(BlockchainAdapter):
             source_txid, source_vout, source_satoshis,
         )
 
-        # Fetch the source transaction for input construction
+        # Obtener la transacción fuente para construir el input
         raw_hex = self._fetch_raw_tx(source_txid)
         source_tx = Transaction.from_hex(raw_hex)
 
-        # Build transaction
+        # Construir transacción
         tx = Transaction()
 
-        # Input: spend the UTXO
+        # Input: gastar el UTXO
         tx_input = TransactionInput(
             source_transaction=source_tx,
             source_output_index=source_vout,
@@ -145,7 +139,7 @@ class BSVAdapter(BlockchainAdapter):
         )
         tx.add_input(tx_input)
 
-        # Output 1: OP_RETURN with evidence data
+        # Output 1: OP_RETURN con los datos de evidencia
         op_return_data = [
             APP_PREFIX,
             analysis_hash,
@@ -158,14 +152,14 @@ class BSVAdapter(BlockchainAdapter):
         )
         tx.add_output(data_output)
 
-        # Output 2: Change back to our address
+        # Output 2: Cambio de vuelta a nuestra dirección
         change_output = TransactionOutput(
             locking_script=P2PKH().lock(self._address),
             change=True,
         )
         tx.add_output(change_output)
 
-        # Calculate fee and sign
+        # Calcular comisión y firmar
         tx.fee()
         tx.sign()
 
@@ -176,11 +170,11 @@ class BSVAdapter(BlockchainAdapter):
         return tx
 
     def _broadcast_tx(self, tx: Any) -> str:
-        """Broadcast transaction via ARC. Returns txid."""
+        """Transmite la transacción vía ARC. Devuelve el txid."""
         from bsv import ARC
 
         broadcaster = ARC(self.arc_url)
-        # Use sync_broadcast for synchronous integration
+        # Usar sync_broadcast para integración síncrona
         response = broadcaster.sync_broadcast(tx, timeout=30)
 
         if response.status == "success":
@@ -193,15 +187,14 @@ class BSVAdapter(BlockchainAdapter):
             )
 
     def _explorer_url(self, txid: str) -> str:
-        """Build WhatsOnChain explorer URL."""
+        """Construye la URL del explorador WhatsOnChain."""
         if self.network == "testnet":
             return f"https://test.whatsonchain.com/tx/{txid}"
         return f"https://whatsonchain.com/tx/{txid}"
 
-    # ── Public API ────────────────────────────────────────────────────
 
     def register(self, evidence_record: dict[str, Any]) -> dict[str, Any]:
-        # Always save locally first (fast, resilient)
+        # Guardamos primero de manera local
         local_result = self._local.register(evidence_record)
 
         if not self.is_configured:
@@ -215,7 +208,7 @@ class BSVAdapter(BlockchainAdapter):
             tx = self._build_op_return_tx(analysis_hash, scene_id)
             txid = self._broadcast_tx(tx)
 
-            # Update local record with real txid
+            # Actualizar el registro local con el txid real
             self._local._update_record_txid(analysis_hash, txid)
 
             return {
@@ -228,7 +221,7 @@ class BSVAdapter(BlockchainAdapter):
             }
 
         except RuntimeError as e:
-            # Expected failures (no UTXOs, broadcast rejected)
+            # Fallos esperados (sin UTXOs, transmisión rechazada)
             logger.warning("[BSV] %s", e)
             return {
                 **local_result,
@@ -246,14 +239,14 @@ class BSVAdapter(BlockchainAdapter):
             }
 
     def verify(self, analysis_hash: str) -> dict[str, Any] | None:
-        # Check local ledger first (fast)
+        # Primero revisar el libro local (rápido)
         record = self._local.verify(analysis_hash)
         if not record:
             return None
 
         txid = record.get("tx_id", "")
         if txid and not txid.startswith("local_"):
-            # Verify on-chain via WhatsOnChain
+            # Verificar en la cadena vía WhatsOnChain
             try:
                 resp = requests.get(
                     f"{self.woc_base}/tx/{txid}", timeout=10,
@@ -264,7 +257,7 @@ class BSVAdapter(BlockchainAdapter):
                     record["confirmations"] = tx_data.get("confirmations", 0)
                     record["explorer_url"] = self._explorer_url(txid)
 
-                    # Try to verify OP_RETURN data matches
+                    # Intentar verificar que los datos OP_RETURN coincidan
                     hex_resp = requests.get(
                         f"{self.woc_base}/tx/{txid}/hex", timeout=10,
                     )
@@ -283,11 +276,11 @@ class BSVAdapter(BlockchainAdapter):
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# LOCAL JSONL LEDGER (always active, also used as cache for BSV)
+# LIBRO LOCAL JSONL (siempre activo, también usado como caché para BSV)
 # ═══════════════════════════════════════════════════════════════════════
 
 class LocalLedgerAdapter(BlockchainAdapter):
-    """Local JSONL file ledger for demo/offline mode and as BSV cache."""
+    """Libro local en archivo JSONL para modo demo/offline y como caché de BSV."""
 
     def __init__(self, ledger_path: str | None = None):
         self.ledger_path = Path(ledger_path) if ledger_path else config.LEDGER_PATH
@@ -325,7 +318,7 @@ class LocalLedgerAdapter(BlockchainAdapter):
         return list(reversed(records))
 
     def _update_record_txid(self, analysis_hash: str, txid: str):
-        """Update a local record with the on-chain txid."""
+        """Actualiza un registro local con el txid de la cadena."""
         if not self.ledger_path.exists():
             return
         lines = self.ledger_path.read_text(encoding="utf-8").strip().splitlines()
@@ -338,10 +331,6 @@ class LocalLedgerAdapter(BlockchainAdapter):
         self.ledger_path.write_text("\n".join(updated) + "\n", encoding="utf-8")
 
 
-# ═══════════════════════════════════════════════════════════════════════
-# FACTORY
-# ═══════════════════════════════════════════════════════════════════════
-
 def get_blockchain_adapter() -> BlockchainAdapter:
-    """Returns BSVAdapter (always - it falls back internally to local ledger)."""
+    """Devuelve BSVAdapter (siempre - internamente recurre al libro local si es necesario)."""
     return BSVAdapter()

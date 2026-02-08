@@ -1,4 +1,4 @@
-"""Loader for VOC/CSV-format datasets (Dataset 2: Roundabout Aerial Images)."""
+"""Cargador para datasets formato VOC/CSV (Dataset 2: Imágenes de Rotondas)."""
 
 from __future__ import annotations
 
@@ -25,12 +25,12 @@ _CLASS_NAME_NORMALIZE = {
 
 
 class VOCDatasetLoader(BaseDatasetLoader):
-    """Loads roundabout dataset with VOC XML annotations and/or CSV.
+    """Carga el dataset de rotondas con anotaciones XML VOC y/o CSV.
 
-    Auto-discovers:
-      - XML annotations in Annotations/ or annotations/
-      - CSV file with columns like filename, class, xmin, ymin, xmax, ymax
-      - Images in images/ or JPEGImages/
+    Auto-descubre:
+      - Anotaciones XML en Annotations/ o annotations/
+      - Archivo CSV con columnas tipo filename, class, xmin, ymin, xmax, ymax
+      - Imágenes en images/ o JPEGImages/
     """
 
     def __init__(self, dataset_id: str, root=None, kaggle_slug=None,
@@ -62,7 +62,7 @@ class VOCDatasetLoader(BaseDatasetLoader):
                 if d.is_dir():
                     candidates.append(d)
         if not candidates:
-            # Fallback: find dirs with images
+            # Fallback: encontrar directorios con imágenes
             for p in self.root.rglob("*.jpg"):
                 if p.parent not in candidates:
                     candidates.append(p.parent)
@@ -72,7 +72,7 @@ class VOCDatasetLoader(BaseDatasetLoader):
         return candidates
 
     def _parse_voc_xml(self, xml_path: Path) -> list[dict]:
-        """Parse Pascal VOC XML annotation."""
+        """Parsea anotaciones XML de formato Pascal VOC."""
         labels = []
         tree = ET.parse(xml_path)
         root = tree.getroot()
@@ -95,14 +95,14 @@ class VOCDatasetLoader(BaseDatasetLoader):
         return labels
 
     def _load_csv_labels(self, image_name: str) -> list[dict]:
-        """Load labels from CSV for a given image filename."""
+        """Carga etiquetas desde CSV para un nombre de imagen dado."""
         if self._csv_data is None:
             csv_path = self._find_csv()
             if csv_path is None:
                 return []
             self._csv_data = pd.read_csv(csv_path)
             self._csv_data.columns = [c.strip().lower() for c in self._csv_data.columns]
-            # Pre-extract just the filename from any path prefix (e.g. "original/imgs/foo.jpg" → "foo.jpg")
+            # Pre-extraer solo el nombre de archivo de cualquier prefijo de ruta (ej. "original/imgs/foo.jpg" → "foo.jpg")
             fname_col = self._detect_fname_col(self._csv_data)
             if fname_col:
                 self._csv_data["_basename"] = self._csv_data[fname_col].astype(str).apply(
@@ -116,7 +116,7 @@ class VOCDatasetLoader(BaseDatasetLoader):
         rows = df[df["_basename"] == image_name]
         labels = []
         for _, row in rows.iterrows():
-            # Try class_name, then class, then label
+            # Intentar class_name, luego class, luego label
             cls_raw = row.get("class_name", row.get("class", row.get("label", None)))
             if pd.isna(cls_raw):
                 continue
@@ -151,13 +151,13 @@ class VOCDatasetLoader(BaseDatasetLoader):
                 for img_path in sorted(img_dir.glob(ext)):
                     labels = []
 
-                    # Try XML annotation first
+                    # Intentar primero anotación XML
                     if xml_dir:
                         xml_path = xml_dir / f"{img_path.stem}.xml"
                         if xml_path.exists():
                             labels = self._parse_voc_xml(xml_path)
 
-                    # Fallback to CSV if no XML labels found
+                    # Recurrir a CSV si no se encontraron etiquetas XML
                     if not labels:
                         labels = self._load_csv_labels(img_path.name)
 

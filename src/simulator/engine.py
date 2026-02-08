@@ -1,11 +1,11 @@
-"""What-if traffic simulator.
+"""Simulador what-if de tráfico.
 
-Generates estimated traffic metrics based on:
-- Time-of-day / day-of-week patterns (automatic weekend detection)
-- Scene type (urban road, roundabout, highway)
-- Weather conditions
-- Special events
-- User-adjustable parameters (vehicle counts, density overrides)
+Genera métricas estimadas de tráfico basadas en:
+- Patrones de hora del día / día de la semana (detección automática de fin de semana)
+- Tipo de escena (calle urbana, rotonda, autopista)
+- Condiciones climáticas
+- Eventos especiales
+- Parámetros ajustables por usuario (conteos de vehículos, sobrescritura de densidad)
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ from typing import Any
 
 import config
 
-# ── Time-of-day traffic multipliers (0-23h) ──────────────────────────
+# ── Multiplicadores de tráfico por hora del día (0-23h) ──────────────────────────
 _HOURLY_FACTOR = {
     0: 0.10, 1: 0.05, 2: 0.05, 3: 0.05, 4: 0.08, 5: 0.15,
     6: 0.40, 7: 0.75, 8: 0.95, 9: 0.80, 10: 0.60, 11: 0.65,
@@ -27,7 +27,7 @@ _HOURLY_FACTOR = {
 
 _WEEKEND_FACTOR = 0.6
 
-# ── Weather impact factors ─────────────────────────────────────────
+# ── Factores de impacto climático ─────────────────────────────────────────
 _WEATHER_FACTOR = {
     "soleado": 1.0,
     "nublado": 0.95,
@@ -35,7 +35,7 @@ _WEATHER_FACTOR = {
     "niebla": 0.70,
 }
 
-# ── Special events impact ──────────────────────────────────────────
+# ── Impacto de eventos especiales ──────────────────────────────────────────
 _EVENT_FACTOR = {
     "none": 1.0,
     "low": 1.1,
@@ -43,22 +43,22 @@ _EVENT_FACTOR = {
     "high": 1.45,
 }
 
-# ── Vehicle mix per scene type ─────────────────────────────────────
+# ── Mezcla de vehículos por tipo de escena ─────────────────────────────────────
 _VEHICLE_MIX = {
     "urban_road": {"car": 0.70, "motorcycle": 0.15, "bus": 0.08, "truck": 0.05, "cycle": 0.02},
     "roundabout": {"car": 0.75, "motorcycle": 0.10, "bus": 0.05, "truck": 0.08, "cycle": 0.02},
     "highway":    {"car": 0.60, "motorcycle": 0.10, "bus": 0.05, "truck": 0.23, "cycle": 0.02},
 }
 
-# ── Base capacity per scene type ────────────────────────────────────
-# Represents max vehicles visible in a typical aerial capture of that scene
+# ── Capacidad base por tipo de escena ────────────────────────────────────
+# Representa máx. vehículos visibles en una captura aérea típica de esa escena
 _BASE_CAPACITY = {
     "urban_road": 35,
     "roundabout": 20,
     "highway": 50,
 }
 
-# ── Traffic state thresholds ───────────────────────────────────────
+# ── Umbrales de estado de tráfico ───────────────────────────────────────
 _STATE_THRESHOLDS = {
     "FLUIDO":        (0.0, 0.40),
     "MODERADO":      (0.40, 0.65),
@@ -68,7 +68,7 @@ _STATE_THRESHOLDS = {
 
 
 class TrafficSimulator:
-    """What-if traffic scenario simulator."""
+    """Simulador de escenarios what-if de tráfico."""
 
     def simulate(
         self,
@@ -77,13 +77,13 @@ class TrafficSimulator:
         scene_id: str = "simulated_scene",
         weather: str = "soleado",
         event_level: str = "none",
-        # User overrides
+        # Sobrescrituras del usuario
         override_total: int | None = None,
         override_counts: dict[str, int] | None = None,
         override_density: float | None = None,
         override_occupancy: float | None = None,
     ) -> dict[str, Any]:
-        """Run a what-if simulation."""
+        """Ejecuta una simulación what-if."""
 
         hour = sim_datetime.hour
         is_weekend = sim_datetime.weekday() >= 5
@@ -93,7 +93,7 @@ class TrafficSimulator:
         if is_weekend:
             time_factor *= _WEEKEND_FACTOR
 
-        # ── External factors ───────────────────────────────────────
+        # ── Factores externos ─────────────────────────────────────────
         weather_factor = _WEATHER_FACTOR.get(weather, 1.0)
         event_factor = _EVENT_FACTOR.get(event_level, 1.0)
 
@@ -103,7 +103,7 @@ class TrafficSimulator:
         base_capacity = _BASE_CAPACITY.get(scene_type, 40)
         capacity = base_capacity
 
-        # ── Total vehicles ─────────────────────────────────────────
+        # ── Total de vehículos ──────────────────────────────────────────
         if override_total is not None:
             total_vehicles = override_total
         else:
@@ -129,10 +129,10 @@ class TrafficSimulator:
                     remaining -= n
             counts = {k: v for k, v in counts.items() if v > 0}
 
-        # ── Load ratio ─────────────────────────────────────────────
+        # ── Ratio de carga ─────────────────────────────────────────────
         load_ratio = total_vehicles / max(capacity, 1)
 
-        # ── Density ────────────────────────────────────────────────
+        # ── Densidad ──────────────────────────────────────────────────
         avg_density = (
             override_density
             if override_density is not None
@@ -143,23 +143,23 @@ class TrafficSimulator:
             total_vehicles, config.GRID_SIZE, scene_type
         )
 
-        # ── Occupancy ──────────────────────────────────────────────
-        # Estimate: each vehicle covers ~0.8-1.2% of a typical aerial frame
-        # depending on vehicle mix (trucks/buses cover more)
+        # ── Ocupación ───────────────────────────────────────────────
+        # Estimación: cada vehículo cubre ~0.8-1.2% de un cuadro aéreo típico
+        # dependiendo de la mezcla de vehículos (camiones/autobuses cubren más)
         if override_occupancy is not None:
             occupancy_pct = override_occupancy
         else:
             heavy_count = sum(counts.get(c, 0) for c in ("bus", "truck"))
             light_count = total_vehicles - heavy_count
-            # Light vehicles ~0.8%, heavy ~1.8% coverage each
+            # Vehículos ligeros ~0.8%, pesados ~1.8% de cobertura cada uno
             raw_occ = light_count * 0.8 + heavy_count * 1.8
             occupancy_pct = round(min(raw_occ, 95.0), 2)
 
-        # ── Traffic state ──────────────────────────────────────────
+        # ── Estado de tráfico ──────────────────────────────────────────
         traffic_state = self._classify_state(load_ratio)
 
-        # ── Risk level ─────────────────────────────────────────────
-        # Based on load ratio + traffic state for consistency
+        # ── Nivel de riesgo ─────────────────────────────────────────────
+        # Basado en ratio de carga + estado de tráfico para consistencia
         if traffic_state == "RIESGO ALTO":
             risk_level = "CRITICAL"
         elif traffic_state == "CONGESTIONADO":
@@ -170,15 +170,15 @@ class TrafficSimulator:
         else:
             risk_level = "LOW"
 
-        # ── Zone occupancy ─────────────────────────────────────────
+        # ── Ocupación por zonas ─────────────────────────────────────────
         zone_occupancy = self._simulate_zone_occupancy(scene_type, demand_factor)
 
-        # ── Roundabout ─────────────────────────────────────────────
+        # ── Rotonda ─────────────────────────────────────────────
         is_roundabout = scene_type == "roundabout"
         if is_roundabout:
-            # Roundabout occupancy: % of vehicles in the central area
-            # At low load most vehicles are passing through (~60-70% inside)
-            # At high load vehicles queue outside too, so ratio drops relatively
+            # Ocupación de rotonda: % de vehículos en el área central
+            # A baja carga, la mayoría de vehículos están pasando (~60-70% adentro)
+            # A alta carga, los vehículos hacen cola afuera también, así el ratio baja relativamente
             base_inside = 0.65 - (load_ratio * 0.15)
             base_inside = max(0.3, min(0.8, base_inside))
             roundabout_occ = round(base_inside * 100 + random.uniform(-5, 5), 2)
@@ -186,7 +186,7 @@ class TrafficSimulator:
         else:
             roundabout_occ = None
 
-        # ── Result ────────────────────────────────────────────────
+        # ── Resultado ────────────────────────────────────────────────
         return {
             "type": "simulation",
             "scene_id": scene_id,

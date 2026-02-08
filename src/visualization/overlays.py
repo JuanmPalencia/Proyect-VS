@@ -1,4 +1,4 @@
-"""Visualization utilities: detection overlays and heatmaps."""
+"""Utilidades de visualización: overlays de detecciones y heatmaps."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import scipy.ndimage
 import config
 from src.detection.detector import Detection
 
-# Colors per class (BGR)
+# Colores por clase (BGR)
 _COLORS = {
     "car": (0, 255, 0),
     "motorcycle": (255, 165, 0),
@@ -23,7 +23,7 @@ _DEFAULT_COLOR = (200, 200, 200)
 
 def draw_detections(image: np.ndarray, detections: list[Detection],
                     show_labels: bool = True) -> np.ndarray:
-    """Draw bounding boxes and labels on image. Returns a copy."""
+    """Dibuja cajas delimitadoras y etiquetas en la imagen. Devuelve una copia."""
     img = image.copy()
     for d in detections:
         x1, y1, x2, y2 = map(int, d.bbox)
@@ -40,9 +40,9 @@ def draw_detections(image: np.ndarray, detections: list[Detection],
 
 def generate_heatmap(image: np.ndarray, detections: list[Detection],
                      sigma: float = 15.0) -> np.ndarray:
-    """Generate a weighted heatmap overlay.
+    """Genera un overlay de heatmap ponderado.
 
-    Returns BGR image with heatmap blended on top.
+    Devuelve imagen BGR con heatmap mezclado encima.
     """
     h, w = image.shape[:2]
     heat = np.zeros((h, w), dtype=np.float32)
@@ -58,17 +58,17 @@ def generate_heatmap(image: np.ndarray, detections: list[Detection],
         heat = scipy.ndimage.gaussian_filter(heat, sigma=sigma)
         heat = heat / heat.max()
 
-    # Convert to color heatmap
+    # Convertir a heatmap de color
     heatmap_color = cv2.applyColorMap((heat * 255).astype(np.uint8), cv2.COLORMAP_JET)
 
-    # Blend with original
+    # Mezclar con la original
     blended = cv2.addWeighted(image, 0.6, heatmap_color, 0.4, 0)
     return blended
 
 
 def draw_collisions(image: np.ndarray, collisions: list[dict],
                      detections: list[Detection]) -> np.ndarray:
-    """Draw collision indicators: red boxes around involved vehicles + connecting lines."""
+    """Dibuja indicadores de colisión: cajas rojas alrededor de vehículos involucrados + líneas de conexión."""
     img = image.copy()
 
     _SEVERITY_COLORS = {
@@ -86,17 +86,17 @@ def draw_collisions(image: np.ndarray, collisions: list[dict],
         det_a = detections[idx_a]
         det_b = detections[idx_b]
 
-        # Draw thick boxes around involved vehicles
+        # Dibujar cajas gruesas alrededor de vehículos involucrados
         for det in (det_a, det_b):
             x1, y1, x2, y2 = map(int, det.bbox)
             cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
 
-        # Draw line between centroids
+        # Dibujar línea entre centroides
         ca = tuple(map(int, det_a.centroid))
         cb = tuple(map(int, det_b.centroid))
         cv2.line(img, ca, cb, color, 2, cv2.LINE_AA)
 
-        # Label at midpoint
+        # Etiqueta en el punto medio
         mid_x = (ca[0] + cb[0]) // 2
         mid_y = (ca[1] + cb[1]) // 2
         label = f"{severity} IoU:{col['iou']:.2f}"
@@ -109,7 +109,7 @@ def draw_collisions(image: np.ndarray, collisions: list[dict],
 
 
 def draw_density_grid(image: np.ndarray, density_grid: list[list[int]]) -> np.ndarray:
-    """Overlay density grid numbers on image."""
+    """Superpone números de cuadrícula de densidad en la imagen."""
     img = image.copy()
     h, w = img.shape[:2]
     rows = len(density_grid)
@@ -121,11 +121,11 @@ def draw_density_grid(image: np.ndarray, density_grid: list[list[int]]) -> np.nd
     for gy in range(rows):
         for gx in range(cols):
             count = density_grid[gy][gx]
-            # Grid lines
+            # Líneas de cuadrícula
             cv2.rectangle(img, (gx * cell_w, gy * cell_h),
                           ((gx + 1) * cell_w, (gy + 1) * cell_h),
                           (255, 255, 255), 1)
-            # Count text
+            # Texto de conteo
             if count > 0:
                 cx = gx * cell_w + cell_w // 2 - 10
                 cy = gy * cell_h + cell_h // 2 + 10

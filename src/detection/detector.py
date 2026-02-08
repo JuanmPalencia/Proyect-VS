@@ -1,4 +1,4 @@
-"""YOLOv8 vehicle detection wrapper."""
+"""Sistema de detección de vehículos con YOLOv8."""
 
 from __future__ import annotations
 
@@ -20,12 +20,12 @@ class Detection:
     class_name: str
     class_id: int
     confidence: float
-    bbox: list[float]      # [x1, y1, x2, y2] absolute
+    bbox: list[float]      # [x1, y1, x2, y2] absoluto
     centroid: list[float]   # [cx, cy]
 
 
 class VehicleDetector:
-    """Wraps YOLOv8 for vehicle detection in aerial images."""
+    """Utiliza YOLOv8 para detección de vehículos en imágenes aéreas."""
 
     def __init__(self, model_path: str | None = None, device: str | None = None,
                  conf_threshold: float | None = None):
@@ -35,7 +35,7 @@ class VehicleDetector:
         self.model = YOLO(self.model_path)
         self.vehicle_classes = config.VEHICLE_CLASSES
 
-        # Fallback COCO model for classes the fine-tuned model misses (e.g. bus)
+        # Modelo COCO de respaldo para clases que el modelo afinado no detecta
         self.fallback_model = None
         self.fallback_classes = getattr(config, "FALLBACK_COCO_CLASSES", {})
         if self.fallback_classes:
@@ -52,7 +52,7 @@ class VehicleDetector:
 
     @staticmethod
     def _iou(box_a: list[float], box_b: list[float]) -> float:
-        """Compute IoU between two [x1,y1,x2,y2] boxes."""
+        """Calcula IoU entre dos cajas [x1,y1,x2,y2]."""
         xa = max(box_a[0], box_b[0])
         ya = max(box_a[1], box_b[1])
         xb = min(box_a[2], box_b[2])
@@ -64,7 +64,7 @@ class VehicleDetector:
         return inter / union if union > 0 else 0.0
 
     def _extract_detections(self, results, class_map: dict[int, str]) -> list[Detection]:
-        """Extract Detection objects from YOLO results using given class map."""
+        """Extrae objetos Detection de los resultados de YOLO usando el mapa de clases dado."""
         detections = []
         for result in results:
             for box in result.boxes:
@@ -85,23 +85,23 @@ class VehicleDetector:
         return detections
 
     def detect(self, image: np.ndarray) -> list[Detection]:
-        """Run inference on a single image (BGR numpy array).
+        """Ejecuta inferencia en una sola imagen (array numpy BGR).
 
-        Returns list of Detection objects for vehicle classes only.
-        Uses fallback COCO model for missing classes (e.g. bus).
+        Devuelve lista de objetos Detection solo para clases de vehículos.
+        Usa modelo COCO de respaldo para clases faltantes (ej. bus).
         """
-        # Primary model
+        # Modelo primario
         results = self.model(image, device=self.device, conf=self.conf_threshold, verbose=False)
         detections = self._extract_detections(results, self.vehicle_classes)
 
-        # Fallback model for missing classes
+        # Modelo de respaldo para clases faltantes
         if self.fallback_model and self.fallback_classes:
             fb_results = self.fallback_model(
                 image, device=self.device, conf=self.conf_threshold, verbose=False,
             )
             fb_dets = self._extract_detections(fb_results, self.fallback_classes)
 
-            # Merge: only add fallback detections that don't overlap existing ones
+            # Mezclar: solo agregar detecciones de respaldo que no se solapan con las existentes
             for fb in fb_dets:
                 overlaps = any(self._iou(fb.bbox, d.bbox) > 0.3 for d in detections)
                 if not overlaps:
@@ -117,10 +117,10 @@ class VehicleDetector:
         return detections
 
     def detect_file(self, image_path: str | Path) -> tuple[np.ndarray, list[Detection]]:
-        """Load image from path and detect. Returns (image, detections)."""
+        """Carga imagen desde ruta y detecta. Devuelve (imagen, detecciones)."""
         img = cv2.imread(str(image_path))
         if img is None:
-            raise FileNotFoundError(f"Cannot read image: {image_path}")
+            raise FileNotFoundError(f"No se pudo leer la imagen: {image_path}")
         return img, self.detect(img)
 
     @property
