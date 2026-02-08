@@ -196,7 +196,6 @@ def render_evidence_box(analysis_hash: str):
 
 
 def render_register_button(evidence, chain_ref, button_key: str):
-    # Sin expanders aquí para evitar anidamientos accidentales
     if st.button("Registrar en blockchain", type="primary", key=button_key):
         with st.spinner("Registrando..."):
             tx_result = chain_ref.register(evidence)
@@ -220,9 +219,7 @@ def render_register_button(evidence, chain_ref, button_key: str):
 
 
 def detect_roundabout(img_bgr: np.ndarray) -> tuple[bool, float]:
-    """
-    Heurística rápida para sugerir rotonda (solo ayuda UI).
-    """
+    """Heurística rápida para sugerir rotonda (solo ayuda UI)."""
     try:
         h, w = img_bgr.shape[:2]
         gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
@@ -295,7 +292,7 @@ analyzer = load_analyzer()
 chain = load_chain()
 simulator = load_simulator()
 
-# ── Sidebar (simple) ──────────────────────────────────────────────────
+# ── Sidebar ───────────────────────────────────────────────────────────
 with st.sidebar:
     c1, c2 = st.columns([1, 2.4], vertical_alignment="center")
     with c1:
@@ -307,7 +304,7 @@ with st.sidebar:
 
 st.caption("Deteccion vehicular en imagenes aereas con evidencia verificable en blockchain")
 
-# ── Tabs arriba ───────────────────────────────────────────────────────
+# ── Tabs ───────────────────────────────────────────────────────────────
 tab_analyze, tab_compare, tab_simulate, tab_verify, tab_records = st.tabs(
     ["Analizar", "Comparar capturas", "Simulador", "Verificar", "Registros"]
 )
@@ -393,7 +390,6 @@ with tab_analyze:
                     use_container_width=True,
                 )
 
-            # Oculto: imagen de incidentes
             if m_collisions:
                 with st.expander(f"Zonas de posibles incidentes ({m_collision_count})", expanded=False):
                     img_col = draw_collisions(img_bgr, m_collisions, det_f)
@@ -437,7 +433,7 @@ with tab_analyze:
                 for zone, pct in metrics.zone_occupancy.items():
                     st.progress(pct / 100, text=f"{_ZONE_LABELS.get(zone, zone)}: {pct:.1f}%")
 
-            # ✅ Detalle de incidentes críticos (SIN matrícula)
+            # ✅ Detalle de incidentes críticos (SIN matrícula y SIN "vehículos involucrados")
             if m_collisions:
                 st.markdown("---")
                 st.markdown("<p class='section-title'>Detalle de incidentes criticos</p>", unsafe_allow_html=True)
@@ -469,38 +465,6 @@ with tab_analyze:
                         f"{a_cls} vs {b_cls} "
                         f"(IoU: {iou:.3f}, dist: {dist_txt}, dist_norm: {norm_txt})"
                     )
-
-                st.markdown("")
-                st.markdown("**Vehiculos involucrados:**")
-
-                involved = []
-                for ev in m_collisions:
-                    if isinstance(ev.get("vehicles"), list):
-                        involved.extend([v for v in ev["vehicles"] if isinstance(v, dict)])
-                    for k in ("vehicle_a", "vehicle_b"):
-                        if isinstance(ev.get(k), dict):
-                            involved.append(ev[k])
-                    if ev.get("vehicle_a_class"):
-                        involved.append({"class": ev.get("vehicle_a_class")})
-                    if ev.get("vehicle_b_class"):
-                        involved.append({"class": ev.get("vehicle_b_class")})
-
-                seen = set()
-                cleaned = []
-                for v in involved:
-                    cls = v.get("class") or v.get("cls") or v.get("label") or "?"
-                    color = v.get("color") or v.get("vehicle_color") or "N/A"
-                    pos = v.get("pos") or v.get("position") or v.get("zone") or "N/A"
-                    key = (cls, color, pos)
-                    if key not in seen:
-                        seen.add(key)
-                        cleaned.append((cls, color, pos))
-
-                if cleaned:
-                    for cls, color, pos in cleaned:
-                        st.write(f"- **{cls}** | Color: {color} | Pos: {pos}")
-                else:
-                    st.write("- (No hay detalles adicionales de vehículos en el payload de incidentes)")
 
             # ── Evidence ──
             st.markdown("---")
@@ -629,7 +593,7 @@ with tab_compare:
         st.info("Sube ambas imagenes para iniciar la comparacion.")
 
 # ═══════════════════════════════════════════════════════════════════════
-# TAB 3: SIMULATOR (bonito + sin mostrar ID de escena)
+# TAB 3: SIMULATOR
 # ═══════════════════════════════════════════════════════════════════════
 with tab_simulate:
     st.markdown(
@@ -670,7 +634,6 @@ with tab_simulate:
 
     sim_datetime = datetime.combine(sim_date, sim_time)
 
-    # ID de escena: NO visible. Se usa internamente.
     sim_scene_id = "zona_centro_01"
     with st.expander("Opciones avanzadas", expanded=False):
         sim_scene_id = st.text_input("ID de escena (avanzado)", value=sim_scene_id, key="sim_scene_id_adv")
