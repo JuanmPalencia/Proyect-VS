@@ -7,6 +7,19 @@ import json
 from datetime import datetime, timezone
 from typing import Any
 
+import numpy as np
+
+
+def _json_default(obj: Any) -> Any:
+    """Handle numpy types and other non-native objects for JSON serialization."""
+    if isinstance(obj, np.integer):
+        return int(obj)
+    if isinstance(obj, np.floating):
+        return float(obj)
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+
 
 def canonical_json(data: dict[str, Any]) -> str:
     """Serialize dict to a deterministic canonical JSON string.
@@ -14,13 +27,25 @@ def canonical_json(data: dict[str, Any]) -> str:
     - Keys sorted recursively
     - No whitespace (compact separators)
     - Ensure_ascii for cross-platform reproducibility
+    - Handles numpy types via custom default handler
     """
-    return json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return json.dumps(
+        data, sort_keys=True, separators=(",", ":"),
+        ensure_ascii=True, default=_json_default,
+    )
 
 
 def compute_hash(data: dict[str, Any]) -> str:
-    """SHA-256 hash of the canonical JSON representation."""
-    canonical = canonical_json(data)
+    """SHA-256 hash of the canonical JSON representation.
+
+    Normalizes data via JSON round-trip first to ensure that
+    numpy types, float precision, etc. produce the same hash
+    whether computed from the original dict or from re-parsed JSON.
+    """
+    normalized = json.loads(canonical_json(data))
+    canonical = json.dumps(
+        normalized, sort_keys=True, separators=(",", ":"), ensure_ascii=True,
+    )
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
