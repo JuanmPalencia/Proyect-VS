@@ -1,4 +1,4 @@
-"""Streamlit frontend for Traffic Aerial Analysis System."""
+"""Streamlit frontend for Traffic Aerial Analysis System (Urban VS)."""
 
 from __future__ import annotations
 
@@ -43,46 +43,131 @@ st.set_page_config(
 )
 
 # ── Global CSS ─────────────────────────────────────────────────────────
-st.markdown("""
+st.markdown(
+    """
 <style>
-    /* Compact header */
-    .block-container { padding-top: 1.5rem; }
-    /* Metric cards */
-    [data-testid="stMetric"] {
-        background: #f8f9fa; border-radius: 8px; padding: 12px;
-        border: 1px solid #e9ecef;
+    .block-container { padding-top: 1.2rem; }
+
+    /* Sidebar header */
+    .sidebar-title {
+        font-size: 1.45rem;
+        font-weight: 800;
+        line-height: 1.1;
+        margin: 0;
+        padding: 0;
+        color: #f8fafc;
     }
-    [data-testid="stMetric"] label { font-size: 0.8rem !important; }
+    .sidebar-subtitle {
+        font-size: 0.85rem;
+        color: #94a3b8;
+        margin-top: 4px;
+    }
+
+    /* Metric readability in dark theme */
+    [data-testid="stMetric"] {
+        background: rgba(255,255,255,0.06) !important;
+        border-radius: 12px !important;
+        padding: 14px !important;
+        border: 1px solid rgba(148,163,184,0.25) !important;
+        backdrop-filter: blur(2px);
+    }
+    [data-testid="stMetricLabel"] {
+        color: #cbd5e1 !important;
+        font-size: 0.85rem !important;
+        font-weight: 600 !important;
+        opacity: 1 !important;
+    }
+    [data-testid="stMetricValue"] {
+        color: #f8fafc !important;
+        font-size: 1.6rem !important;
+        font-weight: 800 !important;
+        opacity: 1 !important;
+    }
+    [data-testid="stMetricDelta"] {
+        color: #e2e8f0 !important;
+        font-weight: 700 !important;
+        opacity: 1 !important;
+    }
+
     /* Evidence box */
     .evidence-box {
-        background: #1a1a2e; color: #e0e0e0; border-radius: 8px;
-        padding: 16px; margin: 8px 0; font-family: monospace; font-size: 0.85rem;
-        border-left: 4px solid #0f3460;
+        background: #0b1220;
+        color: #e2e8f0;
+        border-radius: 10px;
+        padding: 16px;
+        margin: 8px 0;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-size: 0.9rem;
+        border: 1px solid rgba(56,189,248,0.25);
+        box-shadow: 0 0 0 1px rgba(15,23,42,0.6) inset;
     }
-    .evidence-box .hash-label { color: #94a3b8; font-size: 0.75rem; text-transform: uppercase; }
+    .evidence-box .hash-label {
+        color: #94a3b8;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        margin-bottom: 6px;
+    }
     .evidence-box .hash-value { color: #38bdf8; word-break: break-all; }
+
     /* Density banner */
     .density-banner {
-        text-align: center; padding: 14px; border-radius: 10px; margin: 8px 0;
+        text-align: center;
+        padding: 14px;
+        border-radius: 12px;
+        margin: 8px 0;
     }
     .density-banner h2 { margin: 0; font-size: 1.5rem; }
+
     /* Section divider */
     .section-title {
-        font-size: 1.1rem; font-weight: 600; margin-top: 1rem;
-        padding-bottom: 4px; border-bottom: 2px solid #e9ecef;
+        font-size: 1.1rem;
+        font-weight: 700;
+        margin-top: 1rem;
+        padding-bottom: 6px;
+        border-bottom: 2px solid rgba(148,163,184,0.25);
+    }
+
+    /* Badge */
+    .badge {
+        display: inline-block;
+        padding: 3px 10px;
+        border-radius: 999px;
+        font-size: 0.80rem;
+        font-weight: 700;
+        border: 1px solid rgba(148,163,184,0.25);
+        background: rgba(255,255,255,0.06);
+        color: #e2e8f0;
+    }
+
+    /* Simulator hero card */
+    .hero {
+        border-radius: 16px;
+        padding: 18px 18px;
+        border: 1px solid rgba(148,163,184,0.22);
+        background: rgba(255,255,255,0.04);
+        box-shadow: 0 0 0 1px rgba(15,23,42,0.65) inset;
+        margin: 10px 0 14px 0;
+    }
+    .hero h1{
+        margin:0;
+        font-size: 1.6rem;
+        color: #f8fafc;
+        letter-spacing: -0.02em;
+    }
+    .hero p{
+        margin:6px 0 0 0;
+        color: #94a3b8;
+        font-size: .95rem;
     }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
-st.title("Urban VS")
-st.caption("Deteccion vehicular en imagenes aereas con evidencia verificable en blockchain")
-
-
-# ── Helpers ────────────────────────────────────────────────────────────
+# ── Labels / styles ────────────────────────────────────────────────────
 _CLS_LABELS = {"car": "Coche", "motorcycle": "Moto", "truck": "Camion", "bus": "Autobus", "bicycle": "Bicicleta"}
 _ZONE_LABELS = {"upper": "Superior", "middle": "Central", "lower": "Inferior"}
-_SEV_LABELS = {"HIGH": "ALTO", "MEDIUM": "MEDIO", "WARNING": "AVISO"}
-_SEV_COLORS = {"HIGH": "red", "MEDIUM": "orange", "WARNING": "yellow"}
 _DENSITY_STYLES = {
     "FLUIDO":   ("#22c55e", "#22c55e22"),
     "MODERADO": ("#f97316", "#f9731622"),
@@ -111,9 +196,11 @@ def render_evidence_box(analysis_hash: str):
 
 
 def render_register_button(evidence, chain_ref, button_key: str):
+    # Sin expanders aquí para evitar anidamientos accidentales
     if st.button("Registrar en blockchain", type="primary", key=button_key):
         with st.spinner("Registrando..."):
             tx_result = chain_ref.register(evidence)
+        st.session_state[f"tx_result_{button_key}"] = tx_result
 
         status = tx_result.get("status", "unknown")
         if status == "on_chain":
@@ -126,8 +213,60 @@ def render_register_button(evidence, chain_ref, button_key: str):
         else:
             st.info(f"Registrado localmente: `{tx_result.get('tx_id', 'N/A')}`")
 
-        with st.expander("Detalle del registro"):
-            st.json(tx_result)
+    tx_key = f"tx_result_{button_key}"
+    if tx_key in st.session_state:
+        if st.checkbox("Ver detalle del registro", key=f"show_tx_detail_{button_key}"):
+            st.json(st.session_state[tx_key])
+
+
+def detect_roundabout(img_bgr: np.ndarray) -> tuple[bool, float]:
+    """
+    Heurística rápida para sugerir rotonda (solo ayuda UI).
+    """
+    try:
+        h, w = img_bgr.shape[:2]
+        gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+        gray = cv2.GaussianBlur(gray, (9, 9), 0)
+
+        min_dim = min(h, w)
+        min_r = max(12, int(min_dim * 0.06))
+        max_r = int(min_dim * 0.45)
+
+        circles = cv2.HoughCircles(
+            gray,
+            cv2.HOUGH_GRADIENT,
+            dp=1.2,
+            minDist=min_dim * 0.25,
+            param1=120,
+            param2=35,
+            minRadius=min_r,
+            maxRadius=max_r,
+        )
+        hough_hit = circles is not None and len(circles[0]) > 0
+
+        edges = cv2.Canny(gray, 80, 160)
+        edges = cv2.dilate(edges, np.ones((3, 3), np.uint8), iterations=1)
+        cnts, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        best_circ = 0.0
+        for c in cnts:
+            area = cv2.contourArea(c)
+            if area < (h * w) * 0.01:
+                continue
+            peri = cv2.arcLength(c, True)
+            if peri <= 0:
+                continue
+            circularity = 4 * np.pi * (area / (peri * peri))
+            best_circ = max(best_circ, float(circularity))
+
+        score = 0.0
+        if hough_hit:
+            score += 0.65
+        score += max(0.0, min(0.35, (best_circ - 0.45) * 0.7))
+        score = max(0.0, min(1.0, score))
+        return (score >= 0.60), score
+    except Exception:
+        return False, 0.0
 
 
 # ── Cached singletons ─────────────────────────────────────────────────
@@ -135,42 +274,40 @@ def render_register_button(evidence, chain_ref, button_key: str):
 def load_detector():
     return VehicleDetector()
 
+
 @st.cache_resource
 def load_analyzer():
     return TrafficAnalyzer()
+
 
 @st.cache_resource
 def load_chain():
     return get_blockchain_adapter()
 
+
 @st.cache_resource
 def load_simulator():
     return TrafficSimulator()
+
 
 detector = load_detector()
 analyzer = load_analyzer()
 chain = load_chain()
 simulator = load_simulator()
 
-# ── Sidebar ────────────────────────────────────────────────────────────
+# ── Sidebar (simple) ──────────────────────────────────────────────────
 with st.sidebar:
-    st.image(APP_ICON, width=80)
-    st.markdown("### Configuracion")
-    dataset_id = st.selectbox("Dataset", ["uav_traffic", "roundabout", "upload"])
-    is_roundabout = st.checkbox("Escena de rotonda", value=(dataset_id == "roundabout"))
+    c1, c2 = st.columns([1, 2.4], vertical_alignment="center")
+    with c1:
+        st.image(APP_ICON, width=70)
+    with c2:
+        st.markdown("<p class='sidebar-title'>Urban VS</p>", unsafe_allow_html=True)
+        st.markdown("<div class='sidebar-subtitle'>Analítica de tráfico aéreo</div>", unsafe_allow_html=True)
     st.markdown("---")
-    st.markdown("**Modelo**")
-    st.code(detector.model_version, language="text")
-    st.markdown("**Blockchain**")
-    if getattr(chain, "is_configured", False):
-        st.success(f"BSV {getattr(chain, 'network', 'main')}")
-        addr = getattr(chain, "address", None)
-        if addr:
-            st.caption(f"`{addr[:8]}...{addr[-6:]}`")
-    else:
-        st.info("Ledger local (demo)")
 
-# ── Tabs ───────────────────────────────────────────────────────────────
+st.caption("Deteccion vehicular en imagenes aereas con evidencia verificable en blockchain")
+
+# ── Tabs arriba ───────────────────────────────────────────────────────
 tab_analyze, tab_compare, tab_simulate, tab_verify, tab_records = st.tabs(
     ["Analizar", "Comparar capturas", "Simulador", "Verificar", "Registros"]
 )
@@ -195,6 +332,20 @@ with tab_analyze:
         else:
             h, w = img_bgr.shape[:2]
             scene_id = uploaded_file.name
+
+            auto_is_rb, auto_score = detect_roundabout(img_bgr)
+            force_roundabout = st.toggle(
+                "Forzar: la escena es una rotonda",
+                value=auto_is_rb,
+                help="Actívalo si el detector no acierta. Por defecto toma una sugerencia automática.",
+            )
+            is_roundabout = bool(force_roundabout)
+            dataset_id = "roundabout" if is_roundabout else "uav_traffic"
+
+            st.markdown(
+                f"<span class='badge'>Sugerencia automática: {'Rotonda' if auto_is_rb else 'Vía urbana'} (score {auto_score:.2f})</span>",
+                unsafe_allow_html=True,
+            )
 
             with st.spinner("Detectando vehiculos..."):
                 detections = detector.detect(img_bgr)
@@ -242,17 +393,18 @@ with tab_analyze:
                     use_container_width=True,
                 )
 
+            # Oculto: imagen de incidentes
             if m_collisions:
-                st.markdown("<p class='section-title'>Zonas de posibles incidentes</p>", unsafe_allow_html=True)
-                img_col = draw_collisions(img_bgr, m_collisions, det_f)
-                img_col = draw_detections(img_col, det_f)
-                st.image(
-                    cv2.cvtColor(img_col, cv2.COLOR_BGR2RGB),
-                    caption=f"{m_collision_count} posibles incidentes detectados",
-                    use_container_width=True,
-                )
+                with st.expander(f"Zonas de posibles incidentes ({m_collision_count})", expanded=False):
+                    img_col = draw_collisions(img_bgr, m_collisions, det_f)
+                    img_col = draw_detections(img_col, det_f)
+                    st.image(
+                        cv2.cvtColor(img_col, cv2.COLOR_BGR2RGB),
+                        caption=f"{m_collision_count} posibles incidentes detectados",
+                        use_container_width=True,
+                    )
 
-            with st.expander("Mapa de densidad por celdas"):
+            with st.expander("Mapa de densidad por celdas", expanded=False):
                 img_grid = draw_density_grid(img_bgr, metrics.density_grid)
                 st.image(cv2.cvtColor(img_grid, cv2.COLOR_BGR2RGB), use_container_width=True)
 
@@ -260,7 +412,6 @@ with tab_analyze:
             st.markdown("---")
             render_density_banner(metrics.traffic_density)
 
-            st.markdown("")
             m1, m2, m3, m4, m5 = st.columns(5)
             m1.metric("Total vehiculos", metrics.total_vehicles)
             m2.metric("Cobertura vehicular", f"{metrics.occupancy_pct:.1f}%")
@@ -286,48 +437,78 @@ with tab_analyze:
                 for zone, pct in metrics.zone_occupancy.items():
                     st.progress(pct / 100, text=f"{_ZONE_LABELS.get(zone, zone)}: {pct:.1f}%")
 
-            # ── Incidents ──
+            # ✅ Detalle de incidentes críticos (SIN matrícula)
             if m_collisions:
                 st.markdown("---")
-                st.markdown("<p class='section-title'>Detalle de posibles incidentes</p>", unsafe_allow_html=True)
+                st.markdown("<p class='section-title'>Detalle de incidentes criticos</p>", unsafe_allow_html=True)
 
                 sev_counts = {"HIGH": 0, "MEDIUM": 0, "WARNING": 0}
                 for e in m_collisions:
-                    sev = e.get("severity", "WARNING")
+                    sev = (e.get("severity") or "WARNING").upper()
                     if sev in sev_counts:
                         sev_counts[sev] += 1
+
                 st.caption(
-                    f"ALTO: {sev_counts['HIGH']}  |  MEDIO: {sev_counts['MEDIUM']}  |  AVISO: {sev_counts['WARNING']}"
+                    f"Resumen: HIGH={sev_counts['HIGH']} | MEDIUM={sev_counts['MEDIUM']} | WARNING={sev_counts['WARNING']}"
                 )
 
-                for i, col in enumerate(m_collisions):
-                    sev = col.get("severity", "WARNING")
-                    etype = col.get("type", "EVENT")
-                    sev_color = _SEV_COLORS.get(sev, "gray")
-                    sev_label = _SEV_LABELS.get(sev, sev)
-                    iou = col.get("iou", 0.0)
-                    dist_px = col.get("distance", None)
-                    dist_norm = col.get("distance_norm", None)
+                for i, ev in enumerate(m_collisions, start=1):
+                    etype = ev.get("type", "EVENT")
+                    sev = (ev.get("severity") or "WARNING").upper()
+                    a_cls = ev.get("vehicle_a_class", "?")
+                    b_cls = ev.get("vehicle_b_class", "?")
+                    iou = float(ev.get("iou", 0.0) or 0.0)
+                    dist_px = ev.get("distance", None)
+                    dist_norm = ev.get("distance_norm", None)
+
                     dist_txt = f"{dist_px:.0f}px" if isinstance(dist_px, (int, float)) else "N/A"
                     norm_txt = f"{dist_norm:.3f}" if isinstance(dist_norm, (int, float)) else "N/A"
 
                     st.markdown(
-                        f"**#{i+1}** — {etype} — :{sev_color}[{sev_label}] — "
-                        f"{col.get('vehicle_a_class','?')} vs {col.get('vehicle_b_class','?')} "
-                        f"(IoU: {iou:.3f}, dist: {dist_txt}, norm: {norm_txt})"
+                        f"**Evento #{i}** — **{etype}** — **{sev}** — "
+                        f"{a_cls} vs {b_cls} "
+                        f"(IoU: {iou:.3f}, dist: {dist_txt}, dist_norm: {norm_txt})"
                     )
+
+                st.markdown("")
+                st.markdown("**Vehiculos involucrados:**")
+
+                involved = []
+                for ev in m_collisions:
+                    if isinstance(ev.get("vehicles"), list):
+                        involved.extend([v for v in ev["vehicles"] if isinstance(v, dict)])
+                    for k in ("vehicle_a", "vehicle_b"):
+                        if isinstance(ev.get(k), dict):
+                            involved.append(ev[k])
+                    if ev.get("vehicle_a_class"):
+                        involved.append({"class": ev.get("vehicle_a_class")})
+                    if ev.get("vehicle_b_class"):
+                        involved.append({"class": ev.get("vehicle_b_class")})
+
+                seen = set()
+                cleaned = []
+                for v in involved:
+                    cls = v.get("class") or v.get("cls") or v.get("label") or "?"
+                    color = v.get("color") or v.get("vehicle_color") or "N/A"
+                    pos = v.get("pos") or v.get("position") or v.get("zone") or "N/A"
+                    key = (cls, color, pos)
+                    if key not in seen:
+                        seen.add(key)
+                        cleaned.append((cls, color, pos))
+
+                if cleaned:
+                    for cls, color, pos in cleaned:
+                        st.write(f"- **{cls}** | Color: {color} | Pos: {pos}")
+                else:
+                    st.write("- (No hay detalles adicionales de vehículos en el payload de incidentes)")
 
             # ── Evidence ──
             st.markdown("---")
             st.markdown("<p class='section-title'>Trazabilidad y evidencia</p>", unsafe_allow_html=True)
-            st.caption(
-                "Se genera una huella digital unica (hash) del analisis. "
-                "Registrarla en blockchain garantiza que los resultados no se puedan alterar."
-            )
             render_evidence_box(analysis_hash)
             render_register_button(evidence, chain, "reg_analyze")
 
-            with st.expander("Ver datos del analisis (JSON)"):
+            with st.expander("Ver datos del analisis (JSON)", expanded=False):
                 st.code(canonical_json(payload), language="json")
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -342,8 +523,6 @@ with tab_compare:
     with cmp_col_b:
         file_b = st.file_uploader("Captura B", type=["jpg", "jpeg", "png"], key="cmp_b")
 
-    cmp_roundabout = st.checkbox("Ambas son rotondas", value=False, key="cmp_roundabout")
-
     if file_a is not None and file_b is not None:
         img_a = cv2.imdecode(np.frombuffer(file_a.read(), np.uint8), cv2.IMREAD_COLOR)
         img_b = cv2.imdecode(np.frombuffer(file_b.read(), np.uint8), cv2.IMREAD_COLOR)
@@ -351,18 +530,37 @@ with tab_compare:
         if img_a is None or img_b is None:
             st.error("No se pudo leer una o ambas imagenes.")
         else:
+            auto_rb_a, sc_a = detect_roundabout(img_a)
+            auto_rb_b, sc_b = detect_roundabout(img_b)
+
+            cta, ctb = st.columns(2)
+            with cta:
+                force_a = st.toggle("Escena rotonda (A)", value=auto_rb_a)
+                st.markdown(
+                    f"<span class='badge'>Sugerencia A: {'Rotonda' if auto_rb_a else 'Vía urbana'} ({sc_a:.2f})</span>",
+                    unsafe_allow_html=True,
+                )
+            with ctb:
+                force_b = st.toggle("Escena rotonda (B)", value=auto_rb_b)
+                st.markdown(
+                    f"<span class='badge'>Sugerencia B: {'Rotonda' if auto_rb_b else 'Vía urbana'} ({sc_b:.2f})</span>",
+                    unsafe_allow_html=True,
+                )
+
+            is_rb_a = bool(force_a)
+            is_rb_b = bool(force_b)
+
             with st.spinner("Analizando ambas capturas..."):
                 det_a = detector.detect(img_a)
                 det_a = [d for d in det_a if d.confidence >= config.CONFIDENCE_THRESHOLD]
                 h_a, w_a = img_a.shape[:2]
-                met_a = analyzer.analyze(det_a, h_a, w_a, is_roundabout=cmp_roundabout)
+                met_a = analyzer.analyze(det_a, h_a, w_a, is_roundabout=is_rb_a)
 
                 det_b = detector.detect(img_b)
                 det_b = [d for d in det_b if d.confidence >= config.CONFIDENCE_THRESHOLD]
                 h_b, w_b = img_b.shape[:2]
-                met_b = analyzer.analyze(det_b, h_b, w_b, is_roundabout=cmp_roundabout)
+                met_b = analyzer.analyze(det_b, h_b, w_b, is_roundabout=is_rb_b)
 
-            # ── Side-by-side detections ──
             st.markdown("---")
             st.markdown("<p class='section-title'>Detecciones</p>", unsafe_allow_html=True)
             vis_a, vis_b = st.columns(2)
@@ -373,7 +571,6 @@ with tab_compare:
                 st.caption(f"**Captura B** — {file_b.name}")
                 st.image(cv2.cvtColor(draw_detections(img_b, det_b), cv2.COLOR_BGR2RGB), use_container_width=True)
 
-            # ── Side-by-side heatmaps ──
             st.markdown("<p class='section-title'>Mapas de calor</p>", unsafe_allow_html=True)
             heat_a, heat_b = st.columns(2)
             with heat_a:
@@ -381,73 +578,20 @@ with tab_compare:
             with heat_b:
                 st.image(cv2.cvtColor(generate_heatmap(img_b, det_b), cv2.COLOR_BGR2RGB), use_container_width=True)
 
-            # ── Density banners side by side ──
             den_a, den_b = st.columns(2)
             with den_a:
                 render_density_banner(met_a.traffic_density)
             with den_b:
                 render_density_banner(met_b.traffic_density)
 
-            # ── Metrics comparison table ──
-            st.markdown("---")
-            st.markdown("<p class='section-title'>Comparativa de metricas</p>", unsafe_allow_html=True)
-
-            def _delta_str(va, vb):
-                diff = vb - va
-                sign = "+" if diff > 0 else ""
-                return f"{sign}{diff}" if isinstance(diff, int) else f"{sign}{diff:.1f}"
-
-            rows = [
-                ("Total vehiculos", str(met_a.total_vehicles), str(met_b.total_vehicles),
-                 _delta_str(met_a.total_vehicles, met_b.total_vehicles)),
-                ("Densidad de trafico", met_a.traffic_density, met_b.traffic_density, "—"),
-                ("Cobertura vehicular", f"{met_a.occupancy_pct:.1f}%", f"{met_b.occupancy_pct:.1f}%",
-                 f"{_delta_str(met_a.occupancy_pct, met_b.occupancy_pct)}%"),
-                ("Nivel de riesgo", met_a.risk_level, met_b.risk_level, "—"),
-                ("Posibles incidentes", str(met_a.collision_count), str(met_b.collision_count),
-                 _delta_str(met_a.collision_count, met_b.collision_count)),
-            ]
-
-            if cmp_roundabout and met_a.roundabout_level and met_b.roundabout_level:
-                rows.append((
-                    "Rotonda",
-                    f"{met_a.roundabout_level} ({met_a.roundabout_occupancy_pct:.0f}%)",
-                    f"{met_b.roundabout_level} ({met_b.roundabout_occupancy_pct:.0f}%)",
-                    f"{_delta_str(met_a.roundabout_occupancy_pct, met_b.roundabout_occupancy_pct)}%",
-                ))
-
-            all_classes = sorted(set(list(met_a.counts.keys()) + list(met_b.counts.keys())))
-            for cls in all_classes:
-                ca = met_a.counts.get(cls, 0)
-                cb = met_b.counts.get(cls, 0)
-                rows.append((_CLS_LABELS.get(cls, cls), str(ca), str(cb), _delta_str(ca, cb)))
-
-            table_md = "| Metrica | Captura A | Captura B | Diferencia |\n"
-            table_md += "|:--------|:---------:|:---------:|:----------:|\n"
-            for name, va, vb, delta in rows:
-                table_md += f"| {name} | {va} | {vb} | {delta} |\n"
-            st.markdown(table_md)
-
-            # ── Zone comparison ──
-            st.markdown("<p class='section-title'>Distribucion por zona</p>", unsafe_allow_html=True)
-            zone_a_col, zone_b_col = st.columns(2)
-            with zone_a_col:
-                st.caption("**Captura A**")
-                for zone, pct in met_a.zone_occupancy.items():
-                    st.progress(pct / 100, text=f"{_ZONE_LABELS.get(zone, zone)}: {pct:.1f}%")
-            with zone_b_col:
-                st.caption("**Captura B**")
-                for zone, pct in met_b.zone_occupancy.items():
-                    st.progress(pct / 100, text=f"{_ZONE_LABELS.get(zone, zone)}: {pct:.1f}%")
-
-            # ── Evidence for comparison ──
             st.markdown("---")
             st.markdown("<p class='section-title'>Trazabilidad de la comparacion</p>", unsafe_allow_html=True)
-            st.caption("Cada captura genera su propia huella digital. Se pueden registrar ambas de forma independiente.")
 
-            # Build payloads for each
+            dataset_id_a = "roundabout" if is_rb_a else "uav_traffic"
+            dataset_id_b = "roundabout" if is_rb_b else "uav_traffic"
+
             payload_a = build_analysis_payload(
-                scene_id=file_a.name, dataset_id=dataset_id,
+                scene_id=file_a.name, dataset_id=dataset_id_a,
                 counts=met_a.counts, total_vehicles=met_a.total_vehicles,
                 density_grid=met_a.density_grid, occupancy_pct=met_a.occupancy_pct,
                 zone_occupancy=met_a.zone_occupancy, risk_level=met_a.risk_level,
@@ -457,7 +601,7 @@ with tab_compare:
                 collisions=met_a.collisions if met_a.collisions else None,
             )
             payload_b = build_analysis_payload(
-                scene_id=file_b.name, dataset_id=dataset_id,
+                scene_id=file_b.name, dataset_id=dataset_id_b,
                 counts=met_b.counts, total_vehicles=met_b.total_vehicles,
                 density_grid=met_b.density_grid, occupancy_pct=met_b.occupancy_pct,
                 zone_occupancy=met_b.zone_occupancy, risk_level=met_b.risk_level,
@@ -485,12 +629,18 @@ with tab_compare:
         st.info("Sube ambas imagenes para iniciar la comparacion.")
 
 # ═══════════════════════════════════════════════════════════════════════
-# TAB 3: WHAT-IF SIMULATOR
+# TAB 3: SIMULATOR (bonito + sin mostrar ID de escena)
 # ═══════════════════════════════════════════════════════════════════════
 with tab_simulate:
-    st.markdown("Simula el estado del trafico para una fecha, hora y tipo de escena.")
+    st.markdown(
+        "<div class='hero'>"
+        "<h1>Simulador de escenarios</h1>"
+        "<p>Simula el estado del tráfico para una fecha, hora y tipo de escena.</p>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
 
-    col_dt, col_scene, col_meta, col_id = st.columns([1, 1, 1, 1])
+    col_dt, col_scene = st.columns([1, 1])
     with col_dt:
         sim_date = st.date_input("Fecha", value=date.today(), key="sim_date")
         sim_time = st.time_input("Hora", value=time(8, 0), key="sim_time")
@@ -501,133 +651,74 @@ with tab_simulate:
             format_func=lambda x: {"urban_road": "Via urbana", "roundabout": "Rotonda", "highway": "Autovia"}[x],
             key="sim_scene_type",
         )
-    with col_meta:
+
+    col_w, col_e = st.columns([1, 1])
+    with col_w:
         weather = st.selectbox(
             "Meteorologia",
             ["soleado", "nublado", "lluvia", "niebla"],
             format_func=lambda x: x.capitalize(),
             key="sim_weather",
         )
+    with col_e:
         event_level = st.selectbox(
             "Evento especial",
             ["none", "low", "medium", "high"],
             format_func=lambda x: {"none": "Ninguno", "low": "Bajo", "medium": "Medio", "high": "Alto"}[x],
             key="sim_event",
         )
-    with col_id:
-        sim_scene_id = st.text_input("ID de escena", value="zona_centro_01", key="sim_scene_id")
-        st.caption("Ej: zona_centro_01, rotonda_norte")
 
     sim_datetime = datetime.combine(sim_date, sim_time)
 
-    with st.expander("Ajustes manuales (opcional)"):
-        ov_col1, ov_col2, ov_col3 = st.columns(3)
-        with ov_col1:
-            ov_total = st.number_input("Total vehiculos (0=auto)", min_value=0, max_value=200, value=0, key="sim_total")
-        with ov_col2:
-            ov_density = st.number_input("Densidad (0=auto)", min_value=0.0, max_value=20.0, value=0.0, step=0.5, key="sim_density")
-        with ov_col3:
-            ov_occupancy = st.number_input("Cobertura % (0=auto)", min_value=0.0, max_value=100.0, value=0.0, step=1.0, key="sim_occ")
-
-        vc1, vc2, vc3, vc4, vc5 = st.columns(5)
-        ov_cars = vc1.number_input("Coches", min_value=0, max_value=100, value=0, key="sim_car")
-        ov_motos = vc2.number_input("Motos", min_value=0, max_value=50, value=0, key="sim_moto")
-        ov_buses = vc3.number_input("Buses", min_value=0, max_value=20, value=0, key="sim_bus")
-        ov_trucks = vc4.number_input("Camiones", min_value=0, max_value=30, value=0, key="sim_truck")
-        ov_cycles = vc5.number_input("Bicicletas", min_value=0, max_value=30, value=0, key="sim_cycle")
-        manual_counts_sum = ov_cars + ov_motos + ov_buses + ov_trucks + ov_cycles
+    # ID de escena: NO visible. Se usa internamente.
+    sim_scene_id = "zona_centro_01"
+    with st.expander("Opciones avanzadas", expanded=False):
+        sim_scene_id = st.text_input("ID de escena (avanzado)", value=sim_scene_id, key="sim_scene_id_adv")
+        st.caption("Ej: zona_centro_01, rotonda_norte")
 
     if st.button("Simular escenario", type="primary", key="btn_simulate"):
-        override_total = ov_total if ov_total > 0 else None
-        override_density = ov_density if ov_density > 0 else None
-        override_occupancy = ov_occupancy if ov_occupancy > 0 else None
-
-        override_counts = None
-        if manual_counts_sum > 0:
-            override_counts = {}
-            if ov_cars > 0: override_counts["car"] = ov_cars
-            if ov_motos > 0: override_counts["motorcycle"] = ov_motos
-            if ov_buses > 0: override_counts["bus"] = ov_buses
-            if ov_trucks > 0: override_counts["truck"] = ov_trucks
-            if ov_cycles > 0: override_counts["cycle"] = ov_cycles
-
         result = simulator.simulate(
-            sim_datetime=sim_datetime, scene_type=scene_type,
-            scene_id=sim_scene_id, weather=weather, event_level=event_level,
-            override_total=override_total, override_counts=override_counts,
-            override_density=override_density, override_occupancy=override_occupancy,
+            sim_datetime=sim_datetime,
+            scene_type=scene_type,
+            scene_id=sim_scene_id,
+            weather=weather,
+            event_level=event_level,
+            override_total=None,
+            override_counts=None,
+            override_density=None,
+            override_occupancy=None,
         )
 
         state = result["traffic_state"]
         emoji = simulator.get_state_emoji(state)
         color = simulator.get_state_color(state)
 
-        st.markdown("---")
         st.markdown(
-            f"<div style='text-align:center; padding:20px; border-radius:12px; "
-            f"background-color:{color}22; border:2px solid {color};'>"
-            f"<h1 style='color:{color}; margin:0;'>{emoji} {state}</h1>"
-            f"<p style='font-size:1.1em; margin:4px 0 0 0;'>"
-            f"{sim_datetime.strftime('%A %d/%m/%Y %H:%M')} | "
-            f"{'Rotonda' if scene_type == 'roundabout' else 'Via urbana' if scene_type == 'urban_road' else 'Autovia'}"
+            f"<div class='hero' style='border-color:{color}55;'>"
+            f"<h1>{emoji} {state}</h1>"
+            f"<p>{sim_datetime.strftime('%A %d/%m/%Y %H:%M')} · "
+            f"{'Rotonda' if scene_type=='roundabout' else 'Vía urbana' if scene_type=='urban_road' else 'Autovía'} · "
+            f"{weather.capitalize()} · "
+            f"{ {'none':'Sin evento','low':'Evento bajo','medium':'Evento medio','high':'Evento alto'}[event_level] }"
             f"</p></div>",
             unsafe_allow_html=True,
         )
 
-        st.markdown("")
-        mc1, mc2, mc3, mc4, mc5 = st.columns(5)
-        mc1.metric("Vehiculos", result["total_vehicles"])
-        mc2.metric("Cobertura", f"{result['occupancy_pct']:.1f}%")
-        mc3.metric("Riesgo", result["risk_level"])
-        mc4.metric("Carga", f"{result['load_ratio']:.0%}")
-        mc5.metric("Capacidad", result["capacity"])
+        m1, m2, m3, m4, m5 = st.columns(5)
+        m1.metric("Vehiculos", result["total_vehicles"])
+        m2.metric("Cobertura", f"{result['occupancy_pct']:.1f}%")
+        m3.metric("Riesgo", result["risk_level"])
+        m4.metric("Carga", f"{result['load_ratio']:.0%}")
+        m5.metric("Capacidad", result["capacity"])
 
-        st.markdown("**Distribucion por tipo:**")
-        counts_cols = st.columns(len(result["counts"]) or 1)
-        for i, (cls, cnt) in enumerate(result["counts"].items()):
-            counts_cols[i % len(counts_cols)].metric(_CLS_LABELS.get(cls, cls.capitalize()), cnt)
-
-        col_grid, col_zones = st.columns(2)
-        with col_grid:
-            st.markdown("**Mapa de densidad simulado:**")
-            grid = result["density_grid"]
-            grid_html = "<table style='width:100%; border-collapse:collapse;'>"
-            max_val = max(max(row) for row in grid) if grid else 1
-            for row in grid:
-                grid_html += "<tr>"
-                for val in row:
-                    intensity = val / max(max_val, 1)
-                    r = int(255 * intensity)
-                    g = int(255 * (1 - intensity))
-                    grid_html += (
-                        f"<td style='text-align:center; padding:10px; "
-                        f"background-color:rgba({r},{g},0,0.6); "
-                        f"color:white; font-weight:bold; border:1px solid #444; border-radius:4px;'>"
-                        f"{val}</td>"
-                    )
-                grid_html += "</tr>"
-            grid_html += "</table>"
-            st.markdown(grid_html, unsafe_allow_html=True)
-
-        with col_zones:
-            st.markdown("**Distribucion por zona:**")
-            for zone, pct in result["zone_occupancy"].items():
-                label = _ZONE_LABELS.get(zone, zone)
-                st.progress(min(pct / 100, 1.0), text=f"{label}: {pct:.1f}%")
-
-            if result["roundabout_occupancy_pct"] is not None:
-                st.markdown(f"**Rotonda:** {result['roundabout_occupancy_pct']:.1f}%")
-
-        # ── Evidence ──
         st.markdown("---")
         st.markdown("<p class='section-title'>Trazabilidad de la simulacion</p>", unsafe_allow_html=True)
-        st.caption("La simulacion tambien genera una huella digital para garantizar su integridad.")
         sim_hash = compute_hash(result)
         render_evidence_box(sim_hash)
         sim_evidence = build_evidence_record(result)
         render_register_button(sim_evidence, chain, "reg_sim")
 
-        with st.expander("Ver datos de la simulacion (JSON)"):
+        with st.expander("Ver datos de la simulacion (JSON)", expanded=False):
             st.code(canonical_json(result), language="json")
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -643,18 +734,11 @@ with tab_verify:
         key="verify_hash",
     )
 
-    col_verify_btn, col_verify_spacer = st.columns([1, 3])
-    with col_verify_btn:
-        verify_clicked = st.button("Verificar", type="primary", key="btn_verify")
-
-    if verify_clicked:
+    if st.button("Verificar", type="primary", key="btn_verify"):
         if hash_input:
             with st.spinner("Buscando en el registro..."):
                 record = chain.verify(hash_input)
-            if record:
-                st.session_state["verify_result"] = record
-            else:
-                st.session_state["verify_result"] = "not_found"
+            st.session_state["verify_result"] = record if record else "not_found"
         else:
             st.warning("Introduce una huella digital para verificar.")
 
@@ -667,9 +751,7 @@ with tab_verify:
             is_onchain = not txid.startswith("local_") and txid
 
             if result.get("on_chain_verified"):
-                st.success(
-                    f"Verificado en blockchain ({result.get('confirmations', 0)} confirmaciones)"
-                )
+                st.success(f"Verificado en blockchain ({result.get('confirmations', 0)} confirmaciones)")
                 if result.get("explorer_url"):
                     st.markdown(f"[Ver transaccion en WhatsOnChain]({result['explorer_url']})")
             elif is_onchain:
@@ -683,27 +765,11 @@ with tab_verify:
             else:
                 st.success("Registro encontrado en el ledger local")
 
-            st.markdown("")
-            col_info1, col_info2 = st.columns(2)
-            with col_info1:
-                st.markdown("**Datos del registro**")
-                st.write(f"- **Escena:** {result.get('scene_id', 'N/A')}")
-                st.write(f"- **Modelo:** {result.get('model_version', 'N/A')}")
-                st.write(f"- **Fecha:** {result.get('timestamp_utc', 'N/A')[:19]}")
-            with col_info2:
-                st.markdown("**Identificadores**")
-                st.write(f"- **TX:** `{txid or 'N/A'}`")
-                eid = result.get('evidence_id', 'N/A')
-                st.write(f"- **Evidence ID:** `{eid[:16]}...`" if len(eid) > 16 else f"- **Evidence ID:** `{eid}`")
-                if result.get("on_chain_verified"):
-                    st.write(f"- **Confirmaciones:** {result.get('confirmations', 0)}")
-
-            with st.expander("Ver registro completo (JSON)"):
+            with st.expander("Ver registro completo (JSON)", expanded=False):
                 st.json(result)
 
     st.markdown("---")
     st.markdown("<p class='section-title'>Recalcular huella digital desde datos</p>", unsafe_allow_html=True)
-    st.caption("Pega el JSON de un analisis para verificar que la huella digital coincide.")
     json_input = st.text_area("JSON del analisis", key="verify_json", height=120)
     if st.button("Recalcular", key="btn_recalc"):
         if json_input:
@@ -711,15 +777,11 @@ with tab_verify:
                 data = json.loads(json_input)
                 recalc = compute_hash(data)
                 render_evidence_box(recalc)
-                if hash_input and recalc == hash_input:
-                    st.success("Las huellas coinciden. Los datos no fueron alterados.")
-                elif hash_input:
-                    st.error("Las huellas NO coinciden. Los datos fueron modificados.")
             except json.JSONDecodeError:
                 st.error("El JSON introducido no es valido.")
 
 # ═══════════════════════════════════════════════════════════════════════
-# TAB 5: RECORDS
+# TAB 5: RECORDS (sin expanders anidados)
 # ═══════════════════════════════════════════════════════════════════════
 with tab_records:
     st.markdown("Ultimos registros guardados en el ledger.")
@@ -745,11 +807,13 @@ with tab_records:
                     st.write(f"**Modelo:** {rec.get('model_version', 'N/A')}")
                     st.write(f"**Fecha:** {ts}")
                 with col_rec2:
-                    h = rec.get("analysis_hash", "N/A")
-                    st.write(f"**Hash:** `{h[:24]}...`" if len(h) > 24 else f"**Hash:** `{h}`")
+                    hsh = rec.get("analysis_hash", "N/A")
+                    st.write(f"**Hash:** `{hsh[:24]}...`" if len(hsh) > 24 else f"**Hash:** `{hsh}`")
                     txid = rec.get("tx_id", "N/A")
                     st.write(f"**TX:** `{txid[:16]}...`" if len(txid) > 16 else f"**TX:** `{txid}`")
-                with st.expander("JSON completo"):
+
+                show_json = st.checkbox("Ver JSON completo", key=f"records_json_{i}")
+                if show_json:
                     st.json(rec)
     else:
         st.info("No hay registros aun. Analiza una imagen o ejecuta una simulacion para generar el primero.")
