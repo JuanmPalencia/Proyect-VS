@@ -1,7 +1,4 @@
 <<<<<<< Updated upstream
-data/
-=======
-
 
 data/combined
 data/yolo_roundabout
@@ -16,5 +13,4 @@ __pycache__/
 .vscode/
 
 analysis_*.json
-/.claude
 /venv
