@@ -429,7 +429,7 @@ Fee    → ~100-150 satoshis (~$0.00004 USD)
 
 ## Documentación Técnica
 
-**Documentación completa disponible en**: [`DOCUMENTACION_TECNICA.docx`](DOCUMENTACION_TECNICA.docx)
+**Documentación completa disponible en**: [`Documentacion_UrbanVS.pdf`](C:\Users\USUARIO\Documents\GitHub\Proyect-VS\assets\Documentacion_UrbanVS.pdf)
 
 Este documento Word de ~15 páginas incluye:
 
