@@ -1,0 +1,18 @@
+# Fine-tuning dataset config for YOLOv8
+# Adjust paths to where your datasets are downloaded
+
+path: dataset  # root folder
+train: images/train
+val: images/val
+
+nc: 5
+names: ['car', 'motorcycle', 'bicycle', 'truck', 'bus']
+
+# Expected structure:
+# dataset/
+# ├── images/
+# │   ├── train/
+# │   └── val/
+# └── labels/
+#     ├── train/    (YOLO format: class cx cy w h)
+#     └── val/

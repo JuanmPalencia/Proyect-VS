@@ -1,4 +1,13 @@
+<<<<<<< Updated upstream
 data/
+=======
+
+
+data/combined
+data/yolo_roundabout
+#data/roundabout_aerial_images_for_vehicle_detection
+#data/traffic_aerial_images_for_vehicle_detection
+>>>>>>> Stashed changes
 
 __pycache__/
 *.py[cod]
