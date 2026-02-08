@@ -84,7 +84,7 @@ class BSVAdapter(BlockchainAdapter):
     def _fetch_utxos(self) -> list[dict]:
         """Obtiene las salidas no gastadas para nuestra dirección desde WhatsOnChain."""
         url = f"{self.woc_base}/address/{self._address}/unspent"
-        resp = requests.get(url, timeout=15)
+        resp = requests.get(url, timeout=8)
         resp.raise_for_status()
         utxos = resp.json()
         logger.info("[BSV] Found %d UTXOs for %s", len(utxos), self._address)
@@ -93,7 +93,7 @@ class BSVAdapter(BlockchainAdapter):
     def _fetch_raw_tx(self, txid: str) -> str:
         """Obtiene el hexadecimal de la transacción raw desde WhatsOnChain."""
         url = f"{self.woc_base}/tx/{txid}/hex"
-        resp = requests.get(url, timeout=15)
+        resp = requests.get(url, timeout=8)
         resp.raise_for_status()
         return resp.text.strip()
 
@@ -249,25 +249,23 @@ class BSVAdapter(BlockchainAdapter):
             # Verificar en la cadena vía WhatsOnChain
             try:
                 resp = requests.get(
-                    f"{self.woc_base}/tx/{txid}", timeout=10,
+                    f"{self.woc_base}/tx/{txid}", timeout=3,
                 )
                 if resp.status_code == 200:
                     tx_data = resp.json()
                     record["on_chain_verified"] = True
                     record["confirmations"] = tx_data.get("confirmations", 0)
                     record["explorer_url"] = self._explorer_url(txid)
-
-                    # Intentar verificar que los datos OP_RETURN coincidan
-                    hex_resp = requests.get(
-                        f"{self.woc_base}/tx/{txid}/hex", timeout=10,
-                    )
-                    if hex_resp.status_code == 200:
-                        record["raw_tx_available"] = True
                 else:
                     record["on_chain_verified"] = False
+            except requests.Timeout:
+                record["on_chain_verified"] = False
+                record["verify_error"] = "Timeout al verificar en blockchain"
+                logger.warning("[BSV] Timeout verifying tx %s", txid)
             except Exception as e:
                 record["on_chain_verified"] = False
                 record["verify_error"] = str(e)
+                logger.warning("[BSV] Error verifying tx %s: %s", txid, e)
 
         return record
 
@@ -304,10 +302,20 @@ class LocalLedgerAdapter(BlockchainAdapter):
     def verify(self, analysis_hash: str) -> dict[str, Any] | None:
         if not self.ledger_path.exists():
             return None
-        for line in self.ledger_path.read_text(encoding="utf-8").strip().splitlines():
-            record = json.loads(line)
-            if record.get("analysis_hash") == analysis_hash:
-                return record
+        # Leer en modo streaming para evitar cargar todo en memoria
+        try:
+            with open(self.ledger_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    if not line.strip():
+                        continue
+                    try:
+                        record = json.loads(line)
+                        if record.get("analysis_hash") == analysis_hash:
+                            return record
+                    except json.JSONDecodeError:
+                        continue
+        except Exception as e:
+            logger.error("[LOCAL] Error reading ledger: %s", e)
         return None
 
     def list_records(self, limit: int = 50) -> list[dict[str, Any]]:

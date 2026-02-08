@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import logging
 import sys
+import traceback
 from datetime import datetime, date, time
 from pathlib import Path
 
@@ -11,6 +13,8 @@ import cv2
 import numpy as np
 import streamlit as st
 from PIL import Image
+
+logger = logging.getLogger(__name__)
 
 # Ensure project root is in path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -197,20 +201,30 @@ def render_evidence_box(analysis_hash: str):
 
 def render_register_button(evidence, chain_ref, button_key: str):
     if st.button("Registrar en blockchain", type="primary", key=button_key):
-        with st.spinner("Registrando..."):
-            tx_result = chain_ref.register(evidence)
-        st.session_state[f"tx_result_{button_key}"] = tx_result
+        try:
+            with st.spinner("Registrando..."):
+                tx_result = chain_ref.register(evidence)
+            st.session_state[f"tx_result_{button_key}"] = tx_result
 
-        status = tx_result.get("status", "unknown")
-        if status == "on_chain":
-            st.success(f"Registrado en blockchain: `{tx_result['tx_id']}`")
-            st.markdown(f"[Ver en WhatsOnChain]({tx_result['explorer_url']})")
-        elif status == "local_fallback":
-            st.warning("Guardado localmente (sin fondos on-chain).")
-            if tx_result.get("address"):
-                st.caption(f"Address BSV: `{tx_result['address']}`")
-        else:
-            st.info(f"Registrado localmente: `{tx_result.get('tx_id', 'N/A')}`")
+            status = tx_result.get("status", "unknown")
+            if status == "on_chain":
+                st.success(f"Registrado en blockchain: `{tx_result['tx_id']}`")
+                st.markdown(f"[Ver en WhatsOnChain]({tx_result['explorer_url']})")
+            elif status == "local_fallback":
+                st.warning("Guardado localmente (sin fondos on-chain).")
+                if tx_result.get("address"):
+                    st.caption(f"Address BSV: `{tx_result['address']}`")
+                if tx_result.get("warning"):
+                    st.caption(f"⚠️ {tx_result['warning']}")
+            elif status == "error":
+                st.error(f"Error al registrar: {tx_result.get('error', 'Error desconocido')}")
+                st.caption("El registro se guardó localmente, pero no se pudo transmitir a blockchain.")
+            else:
+                st.info(f"Registrado localmente: `{tx_result.get('tx_id', 'N/A')}`")
+        except Exception as e:
+            st.error(f"Error crítico al intentar registrar: {str(e)}")
+            st.caption("Por favor, verifica la configuración de blockchain e intenta nuevamente.")
+            logger.exception("Error in render_register_button")
 
     tx_key = f"tx_result_{button_key}"
     if tx_key in st.session_state:
@@ -693,49 +707,102 @@ with tab_simulate:
         st.caption("Ej: zona_centro_01, rotonda_norte")
 
     if st.button("Simular escenario", type="primary", key="btn_simulate"):
-        result = simulator.simulate(
-            sim_datetime=sim_datetime,
-            scene_type=scene_type,
-            scene_id=sim_scene_id,
-            weather=weather,
-            event_level=event_level,
-            override_total=None,
-            override_counts=None,
-            override_density=None,
-            override_occupancy=None,
-        )
+        try:
+            result = simulator.simulate(
+                sim_datetime=sim_datetime,
+                scene_type=scene_type,
+                scene_id=sim_scene_id,
+                weather=weather,
+                event_level=event_level,
+                override_total=None,
+                override_counts=None,
+                override_density=None,
+                override_occupancy=None,
+            )
 
+            state = result["traffic_state"]
+            emoji = simulator.get_state_emoji(state)
+            color = simulator.get_state_color(state)
+
+            st.markdown(
+                f"<div class='hero' style='border-color:{color}55;'>"
+                f"<h1>{emoji} {state}</h1>"
+                f"<p>{sim_datetime.strftime('%A %d/%m/%Y %H:%M')} · "
+                f"{'Rotonda' if scene_type=='roundabout' else 'Vía urbana' if scene_type=='urban_road' else 'Autovía'} · "
+                f"{weather.capitalize()} · "
+                f"{ {'none':'Sin evento','low':'Evento bajo','medium':'Evento medio','high':'Evento alto'}[event_level] }"
+                f"</p></div>",
+                unsafe_allow_html=True,
+            )
+
+            m1, m2, m3, m4, m5 = st.columns(5)
+            m1.metric("Vehiculos", result["total_vehicles"])
+            m2.metric("Cobertura", f"{result['occupancy_pct']:.1f}%")
+            m3.metric("Riesgo", result["risk_level"])
+            m4.metric("Carga", f"{result['load_ratio']:.0%}")
+            m5.metric("Capacidad", result["capacity"])
+
+            st.markdown("---")
+            st.markdown("<p class='section-title'>Trazabilidad de la simulacion</p>", unsafe_allow_html=True)
+            
+            # Guardar resultado en session_state para evitar recalcular
+            st.session_state["last_simulation"] = result
+            
+            sim_hash = compute_hash(result)
+            render_evidence_box(sim_hash)
+            sim_evidence = build_evidence_record(result)
+            render_register_button(sim_evidence, chain, "reg_sim")
+
+            with st.expander("Ver datos de la simulacion (JSON)", expanded=False):
+                st.code(canonical_json(result), language="json")
+                
+        except Exception as e:
+            st.error(f"Error al ejecutar la simulación: {str(e)}")
+            logger.exception("Error in simulator")
+            with st.expander("Ver detalles técnicos del error"):
+                st.code(traceback.format_exc())
+    
+    # Mostrar la última simulación guardada (persiste entre recargas)
+    elif "last_simulation" in st.session_state:
+        result = st.session_state["last_simulation"]
         state = result["traffic_state"]
         emoji = simulator.get_state_emoji(state)
         color = simulator.get_state_color(state)
-
-        st.markdown(
-            f"<div class='hero' style='border-color:{color}55;'>"
-            f"<h1>{emoji} {state}</h1>"
-            f"<p>{sim_datetime.strftime('%A %d/%m/%Y %H:%M')} · "
-            f"{'Rotonda' if scene_type=='roundabout' else 'Vía urbana' if scene_type=='urban_road' else 'Autovía'} · "
-            f"{weather.capitalize()} · "
-            f"{ {'none':'Sin evento','low':'Evento bajo','medium':'Evento medio','high':'Evento alto'}[event_level] }"
-            f"</p></div>",
-            unsafe_allow_html=True,
-        )
-
-        m1, m2, m3, m4, m5 = st.columns(5)
-        m1.metric("Vehiculos", result["total_vehicles"])
-        m2.metric("Cobertura", f"{result['occupancy_pct']:.1f}%")
-        m3.metric("Riesgo", result["risk_level"])
-        m4.metric("Carga", f"{result['load_ratio']:.0%}")
-        m5.metric("Capacidad", result["capacity"])
-
+        
         st.markdown("---")
-        st.markdown("<p class='section-title'>Trazabilidad de la simulacion</p>", unsafe_allow_html=True)
-        sim_hash = compute_hash(result)
-        render_evidence_box(sim_hash)
-        sim_evidence = build_evidence_record(result)
-        render_register_button(sim_evidence, chain, "reg_sim")
+        st.info("📋 Mostrando la última simulación ejecutada")
+        
+        sim_datetime_str = result.get("simulated_datetime", "")
+        if sim_datetime_str:
+            sim_dt = datetime.fromisoformat(sim_datetime_str)
+            
+            st.markdown(
+                f"<div class='hero' style='border-color:{color}55;'>"
+                f"<h1>{emoji} {state}</h1>"
+                f"<p>{sim_dt.strftime('%A %d/%m/%Y %H:%M')} · "
+                f"{result.get('scene_type', 'N/A')} · "
+                f"{result.get('weather', 'N/A').capitalize()}"
+                f"</p></div>",
+                unsafe_allow_html=True,
+            )
 
-        with st.expander("Ver datos de la simulacion (JSON)", expanded=False):
-            st.code(canonical_json(result), language="json")
+            m1, m2, m3, m4, m5 = st.columns(5)
+            m1.metric("Vehiculos", result["total_vehicles"])
+            m2.metric("Cobertura", f"{result['occupancy_pct']:.1f}%")
+            m3.metric("Riesgo", result["risk_level"])
+            m4.metric("Carga", f"{result['load_ratio']:.0%}")
+            m5.metric("Capacidad", result["capacity"])
+
+            st.markdown("---")
+            st.markdown("<p class='section-title'>Trazabilidad de la simulacion</p>", unsafe_allow_html=True)
+            
+            sim_hash = compute_hash(result)
+            render_evidence_box(sim_hash)
+            sim_evidence = build_evidence_record(result)
+            render_register_button(sim_evidence, chain, "reg_sim")
+
+            with st.expander("Ver datos de la simulacion (JSON)", expanded=False):
+                st.code(canonical_json(result), language="json")
 
 # ═══════════════════════════════════════════════════════════════════════
 # TAB 4: VERIFY
@@ -752,15 +819,23 @@ with tab_verify:
 
     if st.button("Verificar", type="primary", key="btn_verify"):
         if hash_input:
-            with st.spinner("Buscando en el registro..."):
-                record = chain.verify(hash_input)
-            st.session_state["verify_result"] = record if record else "not_found"
+            try:
+                with st.spinner("Buscando en el registro..."):
+                    record = chain.verify(hash_input)
+                st.session_state["verify_result"] = record if record else "not_found"
+            except Exception as e:
+                st.error(f"Error al verificar: {str(e)}")
+                logger.exception("Error in chain.verify")
+                st.session_state["verify_result"] = None
         else:
             st.warning("Introduce una huella digital para verificar.")
 
     if "verify_result" in st.session_state:
         result = st.session_state["verify_result"]
-        if result == "not_found":
+        if result is None:
+            # Error ya mostrado arriba
+            pass
+        elif result == "not_found":
             st.error("No se encontro ningun registro con esa huella digital.")
         else:
             txid = result.get("tx_id", "")
