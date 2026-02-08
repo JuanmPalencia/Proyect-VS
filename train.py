@@ -140,11 +140,11 @@ def prepare_data_if_needed(data_path: Path, force_prepare: bool = False):
 
 def main():
     parser = argparse.ArgumentParser(description="Fine-tune YOLO for aerial vehicle detection")
-    parser.add_argument("--model", default="yolo11s.pt", help="Base model (yolo11n/s/m/l/x.pt)")
+    parser.add_argument("--model", default="yolo8m.pt", help="Base model (yolo11n/s/m/l/x.pt)")
     parser.add_argument("--data", default="data/combined/data.yaml", help="Path to data.yaml")
-    parser.add_argument("--epochs", type=int, default=100, help="Number of training epochs")
-    parser.add_argument("--imgsz", type=int, default=640, help="Image size for training")
-    parser.add_argument("--batch", type=int, default=8, help="Batch size")
+    parser.add_argument("--epochs", type=int, default=30, help="Number of training epochs")
+    parser.add_argument("--imgsz", type=int, default=960, help="Image size for training")
+    parser.add_argument("--batch", type=int, default=16, help="Batch size")
     parser.add_argument("--workers", type=int, default=8, help="Number of dataloader workers")
     parser.add_argument("--lr", type=float, default=0.001, help="Learning rate")
     parser.add_argument("--freeze", type=int, default=0, help="Freeze first N layers")

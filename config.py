@@ -13,18 +13,17 @@ LEDGER_PATH = DATA_DIR / "ledger.jsonl"
 MODELS_DIR = ROOT_DIR / "models"
 
 # ── Model ──────────────────────────────────────────────────────────────
-YOLO_MODEL = os.getenv("YOLO_MODEL", "yolov8n.pt")
-CONFIDENCE_THRESHOLD = float(os.getenv("CONFIDENCE_THRESHOLD", "0.25"))
+YOLO_MODEL = os.getenv("YOLO_MODEL", "runs/detect/runs/train/traffic_finetune4/weights/best.pt")
+CONFIDENCE_THRESHOLD = float(os.getenv("CONFIDENCE_THRESHOLD", "0.15"))
 DEVICE = os.getenv("DEVICE", "cpu")
 
-# ── Detection classes (COCO subset relevant to traffic) ────────────────
-# YOLO (COCO) class IDs → class name
+# ── Detection classes (fine-tuned model) ─────────────────────────────
+# Custom model class IDs → class name (traffic_finetune4)
 VEHICLE_CLASSES = {
-    1: "bicycle",
-    2: "car",
-    3: "motorcycle",
-    5: "bus",
-    7: "truck",
+    0: "car",
+    1: "motorcycle",
+    2: "truck",
+    3: "bus",
 }
 
 # ── Class aliases (cross-dataset consistency) ──────────────────────────

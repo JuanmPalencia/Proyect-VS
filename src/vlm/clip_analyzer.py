@@ -235,6 +235,94 @@ class CLIPAnalyzer:
             },
         }
 
+    def verify_detections(
+        self,
+        image: np.ndarray,
+        detections: list,
+        vehicle_labels: list[str] | None = None,
+        threshold: float = 0.55,
+    ) -> list:
+        """Verify YOLO detections using CLIP zero-shot classification.
+
+        Crops each detection bbox and checks if CLIP agrees it's a vehicle.
+        Helps filter false positives when using low confidence thresholds.
+
+        Args:
+            image: BGR image (OpenCV format)
+            detections: List of Detection objects with bbox [x1,y1,x2,y2]
+            vehicle_labels: Vehicle class names for CLIP prompts
+            threshold: Minimum CLIP vehicle probability to keep detection
+
+        Returns:
+            Filtered list of detections that CLIP confirms as vehicles
+        """
+        if not self.is_available or not detections:
+            return detections
+
+        import clip
+        import torch
+
+        if vehicle_labels is None:
+            vehicle_labels = ["car", "motorcycle", "truck", "bus"]
+
+        # Build text prompts
+        vehicle_prompts = [f"an aerial photo of a {v}" for v in vehicle_labels]
+        negative_prompts = [
+            "an aerial photo of an empty road",
+            "an aerial photo of a shadow on the ground",
+            "an aerial photo of a road marking",
+            "an aerial photo of a building rooftop",
+        ]
+        all_prompts = vehicle_prompts + negative_prompts
+        text_inputs = clip.tokenize(all_prompts).to(self.device)
+
+        with torch.no_grad():
+            text_features = self.model.encode_text(text_inputs)
+            text_features /= text_features.norm(dim=-1, keepdim=True)
+
+        h, w = image.shape[:2]
+        verified = []
+
+        for det in detections:
+            x1, y1, x2, y2 = [int(v) for v in det.bbox]
+            # Clamp and add small padding
+            pad = int(max(x2 - x1, y2 - y1) * 0.1)
+            x1 = max(0, x1 - pad)
+            y1 = max(0, y1 - pad)
+            x2 = min(w, x2 + pad)
+            y2 = min(h, y2 + pad)
+
+            crop = image[y1:y2, x1:x2]
+            if crop.size == 0:
+                continue
+
+            crop_rgb = cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)
+            pil_crop = Image.fromarray(crop_rgb)
+            image_input = self.preprocess(pil_crop).unsqueeze(0).to(self.device)
+
+            with torch.no_grad():
+                image_features = self.model.encode_image(image_input)
+                image_features /= image_features.norm(dim=-1, keepdim=True)
+                similarity = (100.0 * image_features @ text_features.T).softmax(dim=-1)
+                scores = similarity[0].cpu().numpy()
+
+            # Sum of vehicle prompt scores vs negative scores
+            vehicle_score = float(scores[: len(vehicle_prompts)].sum())
+
+            if vehicle_score >= threshold:
+                verified.append(det)
+            else:
+                logger.debug(
+                    "CLIP filtered out %s (conf=%.3f, clip_vehicle=%.3f)",
+                    det.class_name, det.confidence, vehicle_score,
+                )
+
+        logger.info(
+            "CLIP verification: %d/%d detections confirmed",
+            len(verified), len(detections),
+        )
+        return verified
+
     def describe_scene(self, image: np.ndarray, custom_prompts: list[str] | None = None) -> dict[str, float]:
         """Generate scene description using custom text prompts.
 

@@ -32,6 +32,7 @@ from src.visualization.overlays import (
 )
 from src.detection.plate_reader import PlateReader
 from src.simulator import TrafficSimulator
+from src.vlm.clip_analyzer import CLIPAnalyzer
 import config
 
 APP_ICON = Image.open("assets/urban1.png")
@@ -74,11 +75,17 @@ def load_plate_reader():
     return PlateReader()
 
 
+@st.cache_resource
+def load_clip_analyzer():
+    return CLIPAnalyzer(device=config.DEVICE)
+
+
 detector = load_detector()
 analyzer = load_analyzer()
 chain = load_chain()
 simulator = load_simulator()
 plate_reader = load_plate_reader()
+clip_analyzer = load_clip_analyzer()
 
 # ── Sidebar ────────────────────────────────────────────────────────────
 with st.sidebar:
@@ -128,6 +135,19 @@ with tab_analyze:
 
             # IMPORTANT: apply same confidence filtering used in analyzer
             det_f = [d for d in detections if d.confidence >= config.CONFIDENCE_THRESHOLD]
+
+            # VLM verification: filter false positives with CLIP
+            vlm_active = clip_analyzer.is_available
+            pre_vlm_count = len(det_f)
+            if vlm_active:
+                with st.spinner("Verificando detecciones con VLM (CLIP)..."):
+                    det_f = clip_analyzer.verify_detections(img_bgr, det_f)
+
+            # VLM scene analysis
+            scene_analysis = None
+            if vlm_active:
+                with st.spinner("Analizando escena con VLM..."):
+                    scene_analysis = clip_analyzer.analyze_scene(img_bgr)
 
             # Analyze using filtered detections (matches collision indices)
             metrics = analyzer.analyze(det_f, h, w, is_roundabout=is_roundabout)
@@ -228,6 +248,68 @@ with tab_analyze:
             st.markdown("**Distribución por zona (vehículos):**")
             for zone, pct in metrics.zone_occupancy.items():
                 st.progress(pct / 100, text=f"{zone}: {pct:.1f}%")
+
+            # VLM Analysis section
+            if vlm_active:
+                st.markdown("---")
+                st.subheader("Análisis VLM (CLIP)")
+
+                vlm_col1, vlm_col2, vlm_col3 = st.columns(3)
+
+                with vlm_col1:
+                    st.markdown("**Verificación de detecciones**")
+                    filtered_out = pre_vlm_count - len(det_f)
+                    st.metric("Confirmadas por CLIP", len(det_f))
+                    if filtered_out > 0:
+                        st.caption(f"{filtered_out} falsos positivos descartados")
+
+                if scene_analysis and scene_analysis.get("available"):
+                    with vlm_col2:
+                        st.markdown("**Tipo de escena**")
+                        scene = scene_analysis["scene_type"]
+                        scene_labels = {
+                            "urban_road": "Vía urbana",
+                            "highway": "Autovía",
+                            "roundabout": "Rotonda",
+                            "parking": "Estacionamiento",
+                            "intersection": "Intersección",
+                            "residential": "Residencial",
+                        }
+                        st.metric(
+                            scene_labels.get(scene["prediction"], scene["prediction"]),
+                            f"{scene['confidence']:.0%}",
+                        )
+
+                        weather = scene_analysis["weather"]
+                        weather_labels = {
+                            "sunny": "Soleado",
+                            "cloudy": "Nublado",
+                            "rainy": "Lluvia",
+                            "foggy": "Niebla",
+                            "bright": "Brillante",
+                        }
+                        st.markdown("**Clima detectado**")
+                        st.metric(
+                            weather_labels.get(weather["prediction"], weather["prediction"]),
+                            f"{weather['confidence']:.0%}",
+                        )
+
+                    with vlm_col3:
+                        st.markdown("**Densidad visual (CLIP)**")
+                        density = scene_analysis["traffic_density"]
+                        density_labels = {
+                            "empty": "Vacío",
+                            "light": "Ligero",
+                            "moderate": "Moderado",
+                            "heavy": "Denso",
+                            "congested": "Congestionado",
+                        }
+                        st.metric(
+                            density_labels.get(density["prediction"], density["prediction"]),
+                            f"{density['confidence']:.0%}",
+                        )
+            elif not vlm_active:
+                st.info("VLM (CLIP) no disponible. Instala con: `pip install git+https://github.com/openai/CLIP.git`")
 
             # Incident details
             if m_collisions:
