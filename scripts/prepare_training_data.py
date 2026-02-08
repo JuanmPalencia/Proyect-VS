@@ -19,10 +19,16 @@ import pandas as pd
 
 # ── Config ─────────────────────────────────────────────────────────────
 ROOT = Path(__file__).resolve().parent.parent
-ROUNDABOUT_DIR = ROOT / "data" / "roundabout_aerial_images_for_vehicle_detection"
+DATA_DIR = ROOT / "data"
+
+# Roundabout dataset paths
+ROUNDABOUT_DIR = DATA_DIR / "roundabout_aerial_images_for_vehicle_detection"
 CSV_PATH = ROUNDABOUT_DIR / "data.csv"
 IMAGES_DIR = ROUNDABOUT_DIR / "original" / "original" / "imgs"
-OUTPUT_DIR = ROOT / "data" / "yolo_roundabout"
+
+# Output directories
+ROUNDABOUT_OUTPUT = DATA_DIR / "yolo_roundabout"
+OUTPUT_DIR = ROUNDABOUT_OUTPUT  # For backward compatibility
 
 # Class mapping: name → YOLO class id
 CLASS_MAP = {

@@ -24,3 +24,9 @@ requests>=2.31.0
 
 # Utilities
 python-dotenv>=1.0.0
+
+# Vision-Language Models (VLM)
+# CLIP for scene understanding (optional but recommended)
+# Install with: pip install git+https://github.com/openai/CLIP.git
+# torch>=2.0.0  # Uncomment if not already installed
+# torchvision>=0.15.0  # Uncomment if not already installed

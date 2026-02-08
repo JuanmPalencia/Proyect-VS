@@ -8,13 +8,18 @@ from pathlib import Path
 random.seed(42)
 
 ROOT = Path(__file__).resolve().parent.parent
-OUT = ROOT / "data" / "combined"
+DATA_DIR = ROOT / "data"
+OUT = DATA_DIR / "combined"
 
-UAV_DIR = ROOT / "data" / "traffic_aerial_images_for_vehicle_detection" / "dataset"
-ROUND_IMG_TRAIN = ROOT / "data" / "yolo_roundabout" / "images" / "train"
-ROUND_IMG_VAL = ROOT / "data" / "yolo_roundabout" / "images" / "val"
-ROUND_LBL_TRAIN = ROOT / "data" / "yolo_roundabout" / "labels" / "train"
-ROUND_LBL_VAL = ROOT / "data" / "yolo_roundabout" / "labels" / "val"
+# UAV dataset path (YOLO format already)
+UAV_DIR = DATA_DIR / "traffic_aerial_images_for_vehicle_detection" / "dataset"
+
+# Roundabout dataset (converted to YOLO by prepare_training_data.py)
+ROUND_DIR = DATA_DIR / "yolo_roundabout"
+ROUND_IMG_TRAIN = ROUND_DIR / "images" / "train"
+ROUND_IMG_VAL = ROUND_DIR / "images" / "val"
+ROUND_LBL_TRAIN = ROUND_DIR / "labels" / "train"
+ROUND_LBL_VAL = ROUND_DIR / "labels" / "val"
 
 # Unified classes: 0=car, 1=motorcycle, 2=truck, 3=bus
 # UAV:        0=car, 1=motorcycle       → no remap needed
