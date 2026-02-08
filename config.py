@@ -14,8 +14,13 @@ MODELS_DIR = ROOT_DIR / "models"
 
 # ── Model ──────────────────────────────────────────────────────────────
 YOLO_MODEL = os.getenv("YOLO_MODEL", "runs/detect/runs/train/traffic_finetune4/weights/best.pt")
+YOLO_FALLBACK_MODEL = os.getenv("YOLO_FALLBACK_MODEL", "yolov8m.pt")
 CONFIDENCE_THRESHOLD = float(os.getenv("CONFIDENCE_THRESHOLD", "0.15"))
 DEVICE = os.getenv("DEVICE", "cpu")
+
+# COCO classes to pull from fallback model
+# Para volver a solo buses, cambia esta línea a: FALLBACK_COCO_CLASSES = {5: "bus"}
+FALLBACK_COCO_CLASSES = {1: "bicycle", 2: "car", 3: "motorcycle", 5: "bus", 7: "truck"}
 
 # ── Detection classes (fine-tuned model) ─────────────────────────────
 # Custom model class IDs → class name (traffic_finetune4)
