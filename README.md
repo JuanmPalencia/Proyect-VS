@@ -436,13 +436,21 @@ Fee    → ~100-150 satoshis (~$0.00004 USD)
 Este documento PDF de ~8 páginas incluye:
 
 ✅ Visión general del proyecto con contexto y motivación
+
 ✅ Arquitectura detallada (pipeline de procesamiento, módulos)
+
 ✅ Instrucciones completas de instalación y configuración
+
 ✅ Guías paso a paso para ambos modos de uso
+
 ✅ Detalles de la API REST y endpoints
+
 ✅ Explicaciones profundas de algoritmos y métricas
+
 ✅ Arquitectura de blockchain e integridad criptográfica
+
 ✅ Documentación del simulador what-if
+
 ✅ **Roadmap completo de desarrollo futuro**
 
 ---
