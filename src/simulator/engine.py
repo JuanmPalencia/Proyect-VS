@@ -51,10 +51,11 @@ _VEHICLE_MIX = {
 }
 
 # ── Base capacity per scene type ────────────────────────────────────
+# Represents max vehicles visible in a typical aerial capture of that scene
 _BASE_CAPACITY = {
-    "urban_road": 45,
-    "roundabout": 30,
-    "highway": 60,
+    "urban_road": 35,
+    "roundabout": 20,
+    "highway": 50,
 }
 
 # ── Traffic state thresholds ───────────────────────────────────────
@@ -143,23 +144,29 @@ class TrafficSimulator:
         )
 
         # ── Occupancy ──────────────────────────────────────────────
-        occupancy_pct = (
-            override_occupancy
-            if override_occupancy is not None
-            else round(min(total_vehicles * 0.5, 95.0), 2)
-        )
+        # Estimate: each vehicle covers ~0.8-1.2% of a typical aerial frame
+        # depending on vehicle mix (trucks/buses cover more)
+        if override_occupancy is not None:
+            occupancy_pct = override_occupancy
+        else:
+            heavy_count = sum(counts.get(c, 0) for c in ("bus", "truck"))
+            light_count = total_vehicles - heavy_count
+            # Light vehicles ~0.8%, heavy ~1.8% coverage each
+            raw_occ = light_count * 0.8 + heavy_count * 1.8
+            occupancy_pct = round(min(raw_occ, 95.0), 2)
 
         # ── Traffic state ──────────────────────────────────────────
         traffic_state = self._classify_state(load_ratio)
 
         # ── Risk level ─────────────────────────────────────────────
-        has_heavy = any(counts.get(c, 0) > 0 for c in ("bus", "truck"))
-        max_cell = max(max(row) for row in density_grid) if density_grid else 0
-
-        if max_cell >= config.RISK_DENSITY_THRESHOLD and has_heavy:
+        # Based on load ratio + traffic state for consistency
+        if traffic_state == "RIESGO ALTO":
+            risk_level = "CRITICAL"
+        elif traffic_state == "CONGESTIONADO":
             risk_level = "HIGH"
-        elif max_cell >= config.RISK_DENSITY_THRESHOLD or has_heavy:
-            risk_level = "MEDIUM"
+        elif traffic_state == "MODERADO":
+            has_heavy = any(counts.get(c, 0) > 0 for c in ("bus", "truck"))
+            risk_level = "MEDIUM" if has_heavy else "LOW"
         else:
             risk_level = "LOW"
 
@@ -168,7 +175,16 @@ class TrafficSimulator:
 
         # ── Roundabout ─────────────────────────────────────────────
         is_roundabout = scene_type == "roundabout"
-        roundabout_occ = round(load_ratio * 80, 2) if is_roundabout else None
+        if is_roundabout:
+            # Roundabout occupancy: % of vehicles in the central area
+            # At low load most vehicles are passing through (~60-70% inside)
+            # At high load vehicles queue outside too, so ratio drops relatively
+            base_inside = 0.65 - (load_ratio * 0.15)
+            base_inside = max(0.3, min(0.8, base_inside))
+            roundabout_occ = round(base_inside * 100 + random.uniform(-5, 5), 2)
+            roundabout_occ = max(0.0, min(100.0, roundabout_occ))
+        else:
+            roundabout_occ = None
 
         # ── Result ────────────────────────────────────────────────
         return {

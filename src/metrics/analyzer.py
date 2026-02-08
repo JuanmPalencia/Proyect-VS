@@ -23,10 +23,12 @@ class TrafficMetrics:
     total_vehicles: int
     density_grid: list[list[int]]
     occupancy_pct: float
+    traffic_density: str             # FLUIDO / MODERADO / DENSO / SATURADO
     zone_occupancy: dict[str, float]
     risk_level: str                  # LOW / MEDIUM / HIGH / CRITICAL
     is_roundabout: bool
     roundabout_occupancy_pct: float | None
+    roundabout_level: str | None     # BAJA / MEDIA / ALTA / CRÍTICA
     collisions: list[dict] | None = None
     collision_count: int = 0
 
@@ -67,6 +69,17 @@ class TrafficAnalyzer:
             else None
         )
 
+        # ── Parking detection ──
+        parked_ratio = self._estimate_parked_ratio(detections_f)
+
+        # ── Traffic density level (discounting parked vehicles) ──
+        t_density = self._traffic_density_level(density, counts, parked_ratio)
+
+        # ── Roundabout level ──
+        roundabout_lvl = (
+            self._roundabout_level(roundabout_occ) if roundabout_occ is not None else None
+        )
+
         # ── Incident detection ──
         collisions = detect_collisions(detections_f)
 
@@ -78,12 +91,14 @@ class TrafficAnalyzer:
             total_vehicles=total,
             density_grid=density,
             occupancy_pct=round(occupancy, 2),
+            traffic_density=t_density,
             zone_occupancy={k: round(v, 2) for k, v in zones.items()},
             risk_level=risk,
             is_roundabout=is_roundabout,
             roundabout_occupancy_pct=round(roundabout_occ, 2)
             if roundabout_occ is not None
             else None,
+            roundabout_level=roundabout_lvl,
             collisions=collisions,
             collision_count=len(collisions),
         )
@@ -179,6 +194,102 @@ class TrafficAnalyzer:
 
         total = max(len(detections), 1)
         return (inside / total) * 100.0
+
+    @staticmethod
+    def _estimate_parked_ratio(detections: list[Detection]) -> float:
+        """Estimate the fraction of vehicles that appear parked.
+
+        Heuristic: vehicles aligned in a row with regular spacing and
+        similar bbox sizes are likely parked (aerial parking-lot pattern).
+        A vehicle is "parked" if it has 2+ aligned, similarly-sized neighbors.
+        """
+        if len(detections) < 3:
+            return 0.0
+
+        parked = set()
+
+        for i, d in enumerate(detections):
+            w_i = d.bbox[2] - d.bbox[0]
+            h_i = d.bbox[3] - d.bbox[1]
+            size_i = max(w_i, h_i)
+            if size_i == 0:
+                continue
+
+            aligned_count = 0
+            for j, o in enumerate(detections):
+                if i == j:
+                    continue
+                w_j = o.bbox[2] - o.bbox[0]
+                h_j = o.bbox[3] - o.bbox[1]
+                size_j = max(w_j, h_j)
+                if size_j == 0:
+                    continue
+
+                # Similar size (within 40%)
+                size_ratio = min(size_i, size_j) / max(size_i, size_j)
+                if size_ratio < 0.6:
+                    continue
+
+                dx = abs(d.centroid[0] - o.centroid[0])
+                dy = abs(d.centroid[1] - o.centroid[1])
+                avg_size = (size_i + size_j) / 2
+
+                # Close enough to be in the same row (within 3x bbox size)
+                if dx > avg_size * 3 and dy > avg_size * 3:
+                    continue
+
+                # Aligned: one axis displacement is small relative to bbox
+                aligned_x = dx < avg_size * 0.5  # same column
+                aligned_y = dy < avg_size * 0.5  # same row
+
+                if aligned_x or aligned_y:
+                    aligned_count += 1
+
+            # 2+ aligned neighbors → likely parked
+            if aligned_count >= 2:
+                parked.add(i)
+
+        return len(parked) / len(detections) if detections else 0.0
+
+    def _traffic_density_level(
+        self,
+        density_grid: list[list[int]],
+        counts: dict[str, int],
+        parked_ratio: float = 0.0,
+    ) -> str:
+        """Classify traffic density: FLUIDO / MODERADO / DENSO / SATURADO.
+
+        Discounts parked vehicles — a parking lot full of cars is not
+        the same as dense moving traffic.
+        """
+        flat = [v for row in density_grid for v in row]
+        if not flat:
+            return "FLUIDO"
+
+        # Discount parked vehicles from effective density
+        active_factor = max(1.0 - parked_ratio, 0.15)
+        avg = (sum(flat) / len(flat)) * active_factor
+        peak = max(flat) * active_factor
+        has_heavy = any(counts.get(c, 0) > 0 for c in config.HEAVY_VEHICLE_CLASSES)
+
+        if avg >= 3 or (peak >= 6 and has_heavy):
+            return "SATURADO"
+        if avg >= 2 or peak >= 4:
+            return "DENSO"
+        if avg >= 1 or peak >= 2:
+            return "MODERADO"
+        return "FLUIDO"
+
+    @staticmethod
+    def _roundabout_level(occupancy_pct: float) -> str:
+        """Classify roundabout occupancy: BAJA / MEDIA / ALTA / CRÍTICA."""
+        if occupancy_pct >= 75:
+            return "CRÍTICA"
+        if occupancy_pct >= 50:
+            return "ALTA"
+        if occupancy_pct >= 25:
+            return "MEDIA"
+        return "BAJA"
 
     def _assess_risk(
         self,

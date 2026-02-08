@@ -97,9 +97,6 @@ COLLISION_USE_NORMALIZED_DISTANCE = True
 # Lower = stricter (fewer near-misses). Recommended range: 0.8–1.3
 COLLISION_DISTANCE_NORM_THRESHOLD = 1.2
 
-# Enable license plate OCR only when incidents exist
-ENABLE_PLATE_OCR = True
-
 # ── Near-miss false-positive suppression (single-image heuristics) ─────
 # These values reduce false positives due to parked vehicles / queues.
 # They operate only for distance-triggered events (NEAR_MISS), not for IoU events.
