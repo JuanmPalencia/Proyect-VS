@@ -144,7 +144,7 @@ La aplicación se abrirá automáticamente en tu navegador (`http://localhost:85
 - Consulta metadatos completos (timestamp, métricas, txid)
 - Accede al explorador blockchain para ver la transacción confirmada
 
-**3. Simulador** 
+**3. Simulador**
 
 - Configura escenario: fecha/hora, tipo de escena, clima, eventos
 - Ajusta cantidad de vehículos por tipo (sliders interactivos)
@@ -429,9 +429,11 @@ Fee    → ~100-150 satoshis (~$0.00004 USD)
 
 ## Documentación Técnica
 
-**Documentación completa disponible en**: [`Documentacion_UrbanVS.pdf`](C:\Users\USUARIO\Documents\GitHub\Proyect-VS\assets\Documentacion_UrbanVS.pdf)
+**Documentación completa disponible en**: [`Documentacion_UrbanVS.pdf`](assets/Documentacion_UrbanVS.pdf)
 
-Este documento Word de ~15 páginas incluye:
+**Video demostrativo disponible en**: [`Video-UrbanVS.mp4`](assets/Video-UrbanVS.mp4)
+
+Este documento PDF de ~8 páginas incluye:
 
 ✅ Visión general del proyecto con contexto y motivación
 ✅ Arquitectura detallada (pipeline de procesamiento, módulos)
