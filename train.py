@@ -1,58 +1,42 @@
-"""Fine-tuning script for YOLO on traffic datasets with automatic data preparation.
+# Script de fine-tuning para YOLO sobre datasets de tráfico (UAV + Roundabout)
 
-This script:
-1. Checks if training data is prepared (data/combined/)
-2. If not prepared, automatically runs data setup
-3. Trains the YOLO model
-
-Usage:
-    python train.py --data data/combined/data.yaml --epochs 50
-    python train.py --model yolo11m.pt --data data/combined/data.yaml --epochs 100 --imgsz 640 --batch 16 --device 0
-"""
 import argparse
 import sys
 from pathlib import Path
 
+# Añadimos la raíz del proyecto al path para facilitar imports locales
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from ultralytics import YOLO
 
 
-# ══════════════════════════════════════════════════════════════════════════
-# DATA PREPARATION CHECK
-# ══════════════════════════════════════════════════════════════════════════
+# Comprobamos si el dataset de entrenamiento está listo para usar
 
 def check_data_prepared(data_path: Path) -> bool:
-    """Check if training data is already prepared.
-
-    Args:
-        data_path: Path to data.yaml
-
-    Returns:
-        True if data is ready, False otherwise
-    """
+    # Si ni siquiera existe el YAML, no hay dataset preparado
     if not data_path.exists():
         return False
 
-    # Check if data.yaml exists and has content
+    # Validación mínima del contenido del YAML (no lo parseamos, solo comprobamos claves básicas)
     try:
         yaml_content = data_path.read_text()
         if "path:" not in yaml_content or "train:" not in yaml_content:
             return False
     except Exception:
+        # Si falla la lectura, lo tratamos como no preparado
         return False
 
-    # Get the dataset root from yaml
+    # El dataset combinado se asume en el directorio padre del YAML
     combined_dir = data_path.parent
 
-    # Check if train/val directories exist and have images
+    # Estructura estándar de Ultralytics: images/train y images/val
     train_dir = combined_dir / "images" / "train"
     val_dir = combined_dir / "images" / "val"
 
     if not train_dir.exists() or not val_dir.exists():
         return False
 
-    # Check if there are actually images
+    # Comprobación rápida de que hay imágenes realmente
     train_images = list(train_dir.glob("*"))
     val_images = list(val_dir.glob("*"))
 
@@ -61,14 +45,10 @@ def check_data_prepared(data_path: Path) -> bool:
 
     return True
 
-
+# Prepara los datos de entrenamiento si no están listos.
 def prepare_data_if_needed(data_path: Path, force_prepare: bool = False):
-    """Prepare training data if not already done.
-
-    Args:
-        data_path: Path to data.yaml
-        force_prepare: If True, force data preparation even if already done
-    """
+    # Imports locales: aquí no se usan directamente (los usa setup_train),
+    # pero se dejan como “dependencias esperadas” si el script crece.
     from pathlib import Path
     import shutil
     import random
@@ -79,11 +59,12 @@ def prepare_data_if_needed(data_path: Path, force_prepare: bool = False):
     print(" CHECKING TRAINING DATA")
     print("=" * 70)
 
+    # Caso normal: el dataset ya está y no queremos forzar regeneración
     if not force_prepare and check_data_prepared(data_path):
         print(f"[OK] Training data already prepared at: {data_path}")
         print(f"   Skipping data preparation step.")
 
-        # Show quick stats
+        # Estadísticas rápidas para dejar constancia en consola
         combined_dir = data_path.parent
         train_count = len(list((combined_dir / "images" / "train").glob("*")))
         val_count = len(list((combined_dir / "images" / "val").glob("*")))
@@ -93,13 +74,13 @@ def prepare_data_if_needed(data_path: Path, force_prepare: bool = False):
         print(f"   Total: {train_count + val_count} images")
         return
 
+    # Si llegamos aquí, falta dataset o está incompleto
     print("[WARNING]  Training data not found or incomplete")
     print(" Starting automatic data preparation...")
     print()
 
-    # Import and run setup script
+    # Ejecutamos setup_train.py como módulo para evitar pedirle al usuario un paso manual
     try:
-        # Try to import the setup script as a module
         import importlib.util
         setup_script = Path(__file__).parent / "setup_train.py"
 
@@ -108,16 +89,16 @@ def prepare_data_if_needed(data_path: Path, force_prepare: bool = False):
             print("   Please run: python setup_train.py")
             sys.exit(1)
 
-        # Load and execute setup script
+        # Cargamos el archivo como un módulo dinámico (sin necesidad de instalarlo)
         spec = importlib.util.spec_from_file_location("setup_data", setup_script)
         setup_module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(setup_module)
 
-        # Run the main function
+        # Lanzamos la preparación (esperamos que setup_train.py tenga main())
         print("Running data preparation...")
         setup_module.main()
 
-        # Verify it worked
+        # Verificamos que realmente se generó el dataset esperado
         if not check_data_prepared(data_path):
             print("\n[ERROR] Data preparation failed!")
             print("   Please check the error messages above.")
@@ -128,16 +109,14 @@ def prepare_data_if_needed(data_path: Path, force_prepare: bool = False):
         print("=" * 70)
 
     except Exception as e:
+        # Si algo falla, dejamos instrucciones claras para el modo manual
         print(f"\n[ERROR] Error during data preparation: {e}")
         print("\nPlease run manually:")
         print("   python setup_train.py")
         sys.exit(1)
 
 
-# ══════════════════════════════════════════════════════════════════════════
-# TRAINING
-# ══════════════════════════════════════════════════════════════════════════
-
+# ENTRENAMIENTO
 def main():
     parser = argparse.ArgumentParser(description="Fine-tune YOLO for aerial vehicle detection")
     parser.add_argument("--model", default="yolo8m.pt", help="Base model (yolo11n/s/m/l/x.pt)")
@@ -156,19 +135,20 @@ def main():
     parser.add_argument("--resume", action="store_true", help="Resume training from last checkpoint")
     args = parser.parse_args()
 
-    # Convert data path to Path object
+    # Convertimos el path del YAML a objeto Path
     data_path = Path(args.data)
 
-    # Check and prepare data if needed (unless explicitly skipped)
+    # Preparamos datos si hace falta
     if not args.skip_check:
         prepare_data_if_needed(data_path, force_prepare=args.force_prepare)
 
-    # Verify data path exists
+    # Validación final: si no existe el YAML, no se puede entrenar
     if not data_path.exists():
         print(f"\n[ERROR] Data file not found: {data_path}")
         print("   Please check the path or run: python setup_train.py")
         sys.exit(1)
 
+    # Imprimimos configuración para trazabilidad del experimento
     print("\n" + "=" * 70)
     print("️  STARTING YOLO TRAINING")
     print("=" * 70)
@@ -185,11 +165,12 @@ def main():
     print(f"   Name:       {args.name}")
     print()
 
-    # Load model
+    # Carga del modelo base
+    # Ultralytics acepta rutas a pesos preentrenados (p.ej. yolo11m.pt) o runs previos.
     print(f"Loading model: {args.model}...")
     model = YOLO(args.model)
 
-    # Train
+    # Entrenamiento
     print(f"\nStarting training for {args.epochs} epochs...")
     print("=" * 70)
 
@@ -207,7 +188,8 @@ def main():
         resume=args.resume,
     )
 
-    # Training complete
+    # Fin del entrenamiento
+    # Mostramos rutas importantes para que el usuario no tenga que buscarlas.
     print("\n" + "=" * 70)
     print("[OK] TRAINING COMPLETE")
     print("=" * 70)
@@ -220,6 +202,7 @@ def main():
     print(f"   Last model:  {last_model_path}")
     print(f"   Results CSV: {Path(args.project) / args.name / 'results.csv'}")
 
+    # Guía rápida para “enchufar” el modelo entrenado en el sistema (app + API)
     print(f"\n To use the trained model:")
     print(f"   1. Update .env file:")
     print(f"      YOLO_MODEL={best_model_path}")
@@ -228,6 +211,7 @@ def main():
     print(f"\n   3. Or test with API:")
     print(f"      uvicorn api:app --reload")
 
+    # Nota: evaluación rápida con el comando yolo val (Ultralytics CLI)
     print(f"\n To evaluate the model:")
     print(f"   yolo val model={best_model_path} data={args.data}")
 

@@ -1,29 +1,60 @@
-"""Centralized configuration for the traffic analysis system."""
+# Configuración centralizada del sistema de análisis de tráfico aéreo.
+# - Rutas y ficheros
+# - Configuración de modelos de detección
+# - Umbrales de métricas y riesgo
+# - Parámetros de detección de incidentes críticos
+# - Configuración de blockchain (BSV)
+# - Definición de datasets
+
 
 import os
 from pathlib import Path
 from dotenv import load_dotenv
 
+# Carga de variables de entorno desde un archivo .env (si existe)
 load_dotenv()
 
-# ── Paths ──────────────────────────────────────────────────────────────
+# Rutas del proyecto
+# Directorio raíz del proyecto
 ROOT_DIR = Path(__file__).resolve().parent
-DATA_DIR = ROOT_DIR / "data"
-LEDGER_PATH = DATA_DIR / "ledger.jsonl"
-MODELS_DIR = ROOT_DIR / "models"
 
-# ── Model ──────────────────────────────────────────────────────────────
-YOLO_MODEL = os.getenv("YOLO_MODEL", "runs/detect/runs/train/traffic_finetune4/weights/best.pt")
+# Carpeta para datos generados
+DATA_DIR = ROOT_DIR / "data"
+
+# Fichero local que actúa como ledger cuando no hay blockchain real
+LEDGER_PATH = DATA_DIR / "ledger.jsonl"
+
+# Carpeta donde se almacenan los modelos de IA
+# MODELS_DIR = ROOT_DIR / "models"
+
+# Configuración del modelo de detección
+# Ruta al modelo YOLO entrenado específicamente para tráfico aéreo
+YOLO_MODEL = os.getenv(
+    "YOLO_MODEL",
+    "runs/detect/runs/train/traffic_finetune4/weights/best.pt"
+)
+
+# Modelo de respaldo (YOLO genérico) si el modelo fine-tuned no está disponible
 YOLO_FALLBACK_MODEL = os.getenv("YOLO_FALLBACK_MODEL", "yolov8m.pt")
+
+# Umbral mínimo de confianza para aceptar una detección
 CONFIDENCE_THRESHOLD = float(os.getenv("CONFIDENCE_THRESHOLD", "0.15"))
+
+# Dispositivo de inferencia: "cpu" o "cuda"
 DEVICE = os.getenv("DEVICE", "cpu")
 
-# COCO classes to pull from fallback model
-# Para volver a solo buses, cambia esta línea a: FALLBACK_COCO_CLASSES = {5: "bus"}
-FALLBACK_COCO_CLASSES = {1: "bicycle", 2: "car", 3: "motorcycle", 5: "bus", 7: "truck"}
+# Clases COCO usadas por el modelo fallback
+# Diccionario: id_clase -> nombre
+FALLBACK_COCO_CLASSES = {
+    1: "bicycle",
+    2: "car",
+    3: "motorcycle",
+    5: "bus",
+    7: "truck",
+}
 
-# ── Detection classes (fine-tuned model) ─────────────────────────────
-# Custom model class IDs → class name (traffic_finetune4)
+# Clases del modelo entrenado específicamente
+# Mapeo de IDs del modelo fine-tuned a nombres de clases
 VEHICLE_CLASSES = {
     0: "car",
     1: "motorcycle",
@@ -31,18 +62,25 @@ VEHICLE_CLASSES = {
     3: "bus",
 }
 
-# ── Class aliases (cross-dataset consistency) ──────────────────────────
-# Some datasets use different labels (e.g., "cycle" instead of "bicycle")
+# Alias de clases (consistencia entre datasets)
+# Algunos datasets usan nombres distintos para la misma clase
+# (por ejemplo "cycle" en lugar de "bicycle")
 CLASS_ALIASES = {
     "cycle": "bicycle",
 }
 
-# ── Metrics ────────────────────────────────────────────────────────────
+# Parámetros de métricas de tráfico
+# Tamaño de la rejilla usada para el mapa de densidad
 GRID_SIZE = 5
-RISK_DENSITY_THRESHOLD = 3  # detections per cell to flag MEDIUM/HIGH
+
+# Número de detecciones por celda a partir del cual se eleva el nivel de riesgo
+RISK_DENSITY_THRESHOLD = 3
+
+# Clases consideradas como vehículos pesados
 HEAVY_VEHICLE_CLASSES = {"bus", "truck"}
 
-# ── Heatmap weights by class ──────────────────────────────────────────
+# Pesos para el mapa de calor
+# Cada tipo de vehículo aporta un peso distinto a la densidad
 CLASS_WEIGHTS = {
     "car": 1.0,
     "motorcycle": 0.6,
@@ -51,20 +89,28 @@ CLASS_WEIGHTS = {
     "truck": 1.5,
 }
 
-# Alias weight (dataset label)
-CLASS_WEIGHTS["cycle"] = 0.3  # kept for backward compatibility
+# Peso para alias antiguos (compatibilidad con datasets antiguos)
+CLASS_WEIGHTS["cycle"] = 0.3
 
-# ── BSV Blockchain ────────────────────────────────────────────────────
+# Configuración de Blockchain BSV
+# Red BSV: "main" o "testnet"
 BSV_NETWORK = os.getenv("BSV_NETWORK", "main")
+
+# Clave privada usada para firmar transacciones
 BSV_PRIVATE_KEY = os.getenv("BSV_PRIVATE_KEY", "")
+
+# Endpoint del ARC (servicio de envío de transacciones)
 ARC_URL = os.getenv("ARC_URL", "https://arc.gorillapool.io")
+
+# API base de Whatsonchain según la red
 WOC_BASE = (
     "https://api.whatsonchain.com/v1/bsv/test"
     if BSV_NETWORK == "testnet"
     else "https://api.whatsonchain.com/v1/bsv/main"
 )
 
-# ── Dataset IDs (Kaggle) ───────────────────────────────────────────────
+# Definición de datasets
+# Metadatos necesarios para descargar y procesar datasets automáticamente
 DATASETS = {
     "uav_traffic": {
         "kaggle_id": "sakshamjn/traffic-images-captured-from-uavs",
@@ -80,46 +126,34 @@ DATASETS = {
     },
 }
 
-# ── Collision / Critical-event detection ───────────────────────────────
-# IoU above this = overlap conflict
+# Umbral de IoU a partir del cual se considera conflicto por solapamiento
 COLLISION_IOU_THRESHOLD = 0.05
 
-# Strong overlap considered "possible collision"
+# IoU alto es posible colisión real
 COLLISION_IOU_HIGH = 0.15
 
-# Pixel distance fallback (only used if normalized distance is off)
+# Distancia en píxeles como respaldo si no se usa distancia normalizada
 COLLISION_DISTANCE_THRESHOLD = 40
 
-# Use scale-invariant normalized distance (recommended for UAV images)
+# Uso de distancia normalizada (invariante a escala) - recomendado
 COLLISION_USE_NORMALIZED_DISTANCE = True
 
-# Near-miss threshold for normalized distance (distance / avg bbox diagonal)
-# Lower = stricter (fewer near-misses). Recommended range: 0.8–1.3
+# Umbral de distancia normalizada para detectar near-miss
+# Valores más bajos es más estricto
 COLLISION_DISTANCE_NORM_THRESHOLD = 1.2
 
-# ── Near-miss false-positive suppression (single-image heuristics) ─────
-# These values reduce false positives due to parked vehicles / queues.
-# They operate only for distance-triggered events (NEAR_MISS), not for IoU events.
-#
-# Interpretation:
-# - "same lane" detection uses bbox size as scale:
-#   dx small compared to bbox width and dy large compared to bbox height => likely queue/parked.
-NEARMISS_SAME_LANE_X_FACTOR = 0.55     # dx <= factor * mean_bbox_width
-NEARMISS_SAME_LANE_Y_FACTOR = 0.55     # dy <= factor * mean_bbox_height (alternate orientation)
-NEARMISS_SEPARATION_Y_FACTOR = 1.25    # dy >= factor * mean_bbox_height
-NEARMISS_SEPARATION_X_FACTOR = 1.25    # dx >= factor * mean_bbox_width
+# Supresión de falsos positivos en near-miss
+# Heurísticas pensadas para una sola imagen (sin tracking temporal)
+# Ayudan a evitar falsos positivos en colas o vehículos aparcados.
 
-# If "queue-like", keep near-miss only if extremely close
-NEARMISS_STRICT_DISTANCE_NORM = 0.65   # lower => fewer false near-misses in queues
+# Factores para considerar vehículos en el mismo carril
+NEARMISS_SAME_LANE_X_FACTOR = 0.55
+NEARMISS_SAME_LANE_Y_FACTOR = 0.55
 
-# ── Optional: tuning notes (no code uses these) ────────────────────────
-# If you see too many near-misses:
-#   - decrease COLLISION_DISTANCE_NORM_THRESHOLD (e.g., 1.2 -> 1.0)
-#   - decrease NEARMISS_STRICT_DISTANCE_NORM (e.g., 0.65 -> 0.55)
-#
-# If you see too few near-misses:
-#   - increase COLLISION_DISTANCE_NORM_THRESHOLD (e.g., 1.2 -> 1.35)
-#
-# If queued/parked cars still trigger too much:
-#   - increase NEARMISS_SEPARATION_Y_FACTOR (e.g., 1.25 -> 1.5)
-#   - decrease NEARMISS_SAME_LANE_X_FACTOR (e.g., 0.55 -> 0.45)
+# Factores de separación mínima para aceptar un near-miss
+NEARMISS_SEPARATION_Y_FACTOR = 1.25
+NEARMISS_SEPARATION_X_FACTOR = 1.25
+
+# Si los vehículos parecen estar en cola, solo se acepta el near-miss
+# cuando la distancia es extremadamente pequeña
+NEARMISS_STRICT_DISTANCE_NORM = 0.65
